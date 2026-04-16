@@ -6,14 +6,14 @@ on:
     branches:
       - main
     tags:
-      - 'v*'
+      - "v*"
 
 jobs:
-  test:
-    uses: ./.github/workflows/test.dispatch.yaml
+  validate:
+    uses: ./.github/workflows/validate.dispatch.yaml
 
   build:
-    needs: [test]
+    needs: [validate]
     uses: ./.github/workflows/build.dispatch.yaml
     permissions:
       contents: write
@@ -52,113 +52,3 @@ jobs:
             --title "${VERSION}" \
             --generate-notes \
             dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt
-
-  homebrew:
-    if: ${{ startsWith(github.ref, 'refs/tags/') && !contains(github.ref_name, '-') }}
-    needs: [release]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Download SHA256SUMS.txt
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ github.ref_name }}
-        run: |
-          gh release download "${VERSION}" \
-            --repo "${GITHUB_REPOSITORY}" \
-            --pattern "SHA256SUMS.txt"
-
-      - name: Parse per-arch SHAs
-        id: shas
-        run: |
-          {
-            echo "darwin_arm64=$(awk '$2 ~ /darwin-arm64/ {print $1}' SHA256SUMS.txt)"
-            echo "darwin_amd64=$(awk '$2 ~ /darwin-amd64/ {print $1}' SHA256SUMS.txt)"
-            echo "linux_arm64=$(awk '$2 ~ /linux-arm64/ {print $1}' SHA256SUMS.txt)"
-            echo "linux_amd64=$(awk '$2 ~ /linux-amd64/ {print $1}' SHA256SUMS.txt)"
-          } >> "${GITHUB_OUTPUT}"
-
-      - name: Checkout homebrew-tap
-        uses: actions/checkout@v6
-        with:
-          repository: andreswebs/homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_COMMITTER_TOKEN }}
-          path: homebrew-tap
-
-      - name: Update Formula/gematria.rb
-        env:
-          VERSION: ${{ github.ref_name }}
-          DARWIN_ARM64_SHA: ${{ steps.shas.outputs.darwin_arm64 }}
-          DARWIN_AMD64_SHA: ${{ steps.shas.outputs.darwin_amd64 }}
-          LINUX_ARM64_SHA: ${{ steps.shas.outputs.linux_arm64 }}
-          LINUX_AMD64_SHA: ${{ steps.shas.outputs.linux_amd64 }}
-        run: |
-          python3 - <<'PY'
-          import os, re, sys
-
-          path = 'homebrew-tap/Formula/gematria.rb'
-          # Strip leading "v" — Homebrew formula `version` field is bare SemVer.
-          ver = os.environ['VERSION'].lstrip('v')
-          shas = {
-              'darwin-arm64': os.environ['DARWIN_ARM64_SHA'],
-              'darwin-amd64': os.environ['DARWIN_AMD64_SHA'],
-              'linux-arm64':  os.environ['LINUX_ARM64_SHA'],
-              'linux-amd64':  os.environ['LINUX_AMD64_SHA'],
-          }
-          for arch, sha in shas.items():
-              if not sha:
-                  print(f"::error::missing SHA for {arch}", file=sys.stderr)
-                  sys.exit(1)
-
-          with open(path) as f:
-              content = f.read()
-
-          # Update the bare version line.
-          new_content, n = re.subn(
-              r'^(\s*version )"[^"]+"',
-              rf'\g<1>"{ver}"',
-              content,
-              flags=re.MULTILINE,
-          )
-          if n != 1:
-              print(f"::error::expected exactly 1 version line, got {n}", file=sys.stderr)
-              sys.exit(1)
-          content = new_content
-
-          # For each arch: locate the `url` line containing that arch slug,
-          # then update the `sha256` line on the next non-blank line.
-          for arch, sha in shas.items():
-              pat = rf'(url\s+"[^"]*{re.escape(arch)}[^"]*"\s*\n\s*sha256\s+)"[^"]*"'
-              new_content, n = re.subn(pat, rf'\g<1>"{sha}"', content)
-              if n != 1:
-                  print(f"::error::expected exactly 1 sha256 update for {arch}, got {n}", file=sys.stderr)
-                  sys.exit(1)
-              content = new_content
-
-          with open(path, 'w') as f:
-              f.write(content)
-          PY
-          echo "--- updated formula ---"
-          cd homebrew-tap && git --no-pager diff Formula/gematria.rb
-
-      - name: Open pull request against homebrew-tap
-        uses: peter-evans/create-pull-request@v7
-        with:
-          path: homebrew-tap
-          token: ${{ secrets.HOMEBREW_TAP_COMMITTER_TOKEN }}
-          branch: gematria-${{ github.ref_name }}
-          base: main
-          delete-branch: true
-          commit-message: "gematria: update to ${{ github.ref_name }}"
-          title: "gematria: update to ${{ github.ref_name }}"
-          body: |
-            Automated bump from the [`release`](https://github.com/andreswebs/gematria/actions) workflow in `andreswebs/gematria`.
-
-            Triggered by tag [`${{ github.ref_name }}`](https://github.com/andreswebs/gematria/releases/tag/${{ github.ref_name }}).
-
-            Updates `Formula/gematria.rb`:
-
-            - `version` → `${{ github.ref_name }}` (with leading `v` stripped per Homebrew convention)
-            - Four architecture-specific `sha256` values from the release's `SHA256SUMS.txt`

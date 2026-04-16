@@ -45,13 +45,13 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
 
       - name: Install golangci-lint
-        uses: golangci/golangci-lint-action@v8
+        uses: golangci/golangci-lint-action@v9
         with:
           args: --help
 
@@ -69,8 +69,8 @@ jobs:
           echo "${out}"
           [[ "${out}" == "gematria ${VERSION}" ]] || { echo "::error::version mismatch: got '${out}', want 'gematria ${VERSION}'" >&2; exit 1; }
 
-      - name: Generate attestation
-        uses: actions/attest-build-provenance@v3
+      - name: Attest build provenance
+        uses: actions/attest@v4
         with:
           subject-path: |
             dist/*.tar.gz
@@ -78,7 +78,7 @@ jobs:
             dist/SHA256SUMS.txt
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.artifact-name }}
           path: dist/

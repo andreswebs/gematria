@@ -7,4 +7,4 @@ on:
 
 jobs:
   test:
-    uses: ./.github/workflows/test.dispatch.yaml
+    uses: ./.github/workflows/validate.dispatch.yaml
