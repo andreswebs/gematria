@@ -1,0 +1,83 @@
+---
+name: Build
+
+defaults:
+  run:
+    shell: bash
+
+on:
+  workflow_call:
+    inputs:
+      runs-on:
+        required: false
+        type: string
+        default: ubuntu-latest
+      artifact-name:
+        required: false
+        type: string
+        default: dist
+      artifact-retention-days:
+        required: false
+        type: number
+        default: 7
+
+    outputs:
+      artifact-name:
+        description: Name of the uploaded build artifact
+        value: ${{ jobs.build.outputs.artifact-name }}
+
+jobs:
+  build:
+    runs-on: ${{ inputs.runs-on }}
+
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+
+    outputs:
+      artifact-name: ${{ inputs.artifact-name }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: src/go.mod
+          cache-dependency-path: src/go.sum
+
+      - name: Build release artifacts
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: make dist VERSION="${VERSION}"
+
+      - name: Smoke-test built artifact
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          tar -xzf "dist/gematria-linux-amd64-${VERSION}.tar.gz" -C /tmp
+          out="$(/tmp/gematria-linux-amd64-${VERSION}/gematria --version)"
+          echo "${out}"
+          [[ "${out}" == "gematria ${VERSION}" ]] || { echo "::error::version mismatch: got '${out}', want 'gematria ${VERSION}'" >&2; exit 1; }
+
+      - name: Generate attestation
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: |
+            dist/*.tar.gz
+            dist/*.zip
+            dist/SHA256SUMS.txt
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: dist/
+          retention-days: ${{ inputs.artifact-retention-days }}
+          if-no-files-found: error
+          overwrite: true
+          include-hidden-files: false
