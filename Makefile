@@ -1,17 +1,20 @@
-APP_NAME   := gematria
-SRC_DIR    := $(CURDIR)/src
-BIN_DIR    := $(CURDIR)/bin
-CMD_DIR    := ./cmd/gematria
-LDFLAGS    := -s -w
-HOST_OS    := $(shell go env GOOS)
-HOST_ARCH  := $(shell go env GOARCH)
-LOCAL_BIN  := $(BIN_DIR)/$(APP_NAME)-$(HOST_OS)-$(HOST_ARCH)
+APP_NAME    := gematria
+SRC_DIR     := $(CURDIR)/src
+BIN_DIR     := $(CURDIR)/bin
+DIST_DIR    := $(CURDIR)/dist
+CMD_DIR     := ./cmd/gematria
+VERSION     ?= $(shell git describe --tags --dirty --always 2>/dev/null || echo v0.0.0-dev)
+VERSION_PKG := github.com/andreswebs/gematria/internal/cli
+LDFLAGS     := -s -w -X $(VERSION_PKG).cliVersion=$(VERSION)
+HOST_OS     := $(shell go env GOOS)
+HOST_ARCH   := $(shell go env GOARCH)
+LOCAL_BIN   := $(BIN_DIR)/$(APP_NAME)-$(HOST_OS)-$(HOST_ARCH)
 
 PLATFORMS := linux-amd64 linux-arm64 darwin-amd64 darwin-arm64 windows-amd64 windows-arm64
 
-.PHONY: help build build-all build-local \
+.PHONY: help build build-all build-local dist \
         test test-race vet fmt fmt-check lint validate \
-        clean clean-local run \
+        clean clean-local clean-dist run \
         $(addprefix build-,$(PLATFORMS))
 
 help: ## List available targets
@@ -39,6 +42,24 @@ $(eval $(call build-target,windows,arm64,.exe))
 $(BIN_DIR):
 	mkdir -p $(BIN_DIR)
 
+$(DIST_DIR):
+	mkdir -p $(DIST_DIR)
+
+dist: build-all | $(DIST_DIR) ## Package cross-platform tarballs into dist/
+	@set -e; \
+	rm -f $(DIST_DIR)/*.tar.gz $(DIST_DIR)/SHA256SUMS.txt; \
+	for p in $(PLATFORMS); do \
+	  os=$${p%-*}; arch=$${p#*-}; \
+	  ext=""; [ "$$os" = "windows" ] && ext=".exe"; \
+	  stage="$(DIST_DIR)/$(APP_NAME)-$$os-$$arch-$(VERSION)"; \
+	  rm -rf "$$stage" && mkdir -p "$$stage"; \
+	  cp "$(BIN_DIR)/$(APP_NAME)-$$os-$$arch$$ext" "$$stage/$(APP_NAME)$$ext"; \
+	  cp LICENSE README.md "$$stage/"; \
+	  tar -C "$(DIST_DIR)" -czf "$$stage.tar.gz" "$$(basename $$stage)"; \
+	  rm -rf "$$stage"; \
+	done; \
+	cd $(DIST_DIR) && shasum -a 256 *.tar.gz > SHA256SUMS.txt
+
 run: ## Run locally with build flags
 	cd $(SRC_DIR) && go run -ldflags="$(LDFLAGS)" $(CMD_DIR)
 
@@ -65,5 +86,8 @@ validate: fmt-check vet lint test ## Run all checks
 clean-local: ## Remove local binary
 	rm -f $(LOCAL_BIN)
 
-clean: ## Remove all build artifacts
+clean-dist: ## Remove dist/ artifacts
+	@[ -d "$(DIST_DIR)" ] && rm -f $(DIST_DIR)/*.tar.gz $(DIST_DIR)/SHA256SUMS.txt || true
+
+clean: clean-dist ## Remove all build artifacts
 	@[ -d "$(BIN_DIR)" ] && rm -f $(BIN_DIR)/$(APP_NAME)-* || true

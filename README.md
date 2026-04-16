@@ -10,36 +10,63 @@ side effects. It composes naturally with pipes, `xargs`, shell scripts, and
 
 ---
 
+## Installation
+
+### Homebrew (macOS, Linux)
+
+```sh
+brew install andreswebs/tap/gematria
+```
+
+### From source
+
+Requires Go 1.26+:
+
+```sh
+git clone https://github.com/andreswebs/gematria
+cd gematria
+make build
+./bin/gematria-$(go env GOOS)-$(go env GOARCH) --version
+```
+
+### Pre-built binaries
+
+Download the tarball for your platform from the
+[releases page](https://github.com/andreswebs/gematria/releases) and place
+the `gematria` binary on your `PATH`.
+
+---
+
 ## Quick Start
 
 Compute the value of a Hebrew word:
 
 ```sh
-$ gematria שלום
-שלום = 376 (ש=300 + ל=30 + ו=6 + ם=40)
+gematria ‏שלום‎
+# ‏שלום‎ = 376 (‏ש‎=300 + ‏ל‎=30 + ‏ו‎=6 + ‏ם‎=40)
 ```
 
 Get just the number (ideal for piping into scripts):
 
 ```sh
-$ gematria --output value שלום
-376
+gematria --output value ‏שלום‎
+# 376
 ```
 
 Type a Hebrew word phonetically in Latin (academic scheme by default):
 
 ```sh
-$ gematria -t shalom
-שלם = 370 (ש=300 + ל=30 + ם=40)
+gematria -t shalom
+# ‏שלם‎ = 370 (‏ש‎=300 + ‏ל‎=30 + ‏ם‎=40)
 ```
 
 Find Hebrew words from a word list whose value equals 376:
 
 ```sh
-$ gematria --find 376 --wordlist words.tsv
-1. שלום
-   Transliteration: shalom
-   Meaning: peace
+gematria --find 376 --wordlist words.tsv
+# 1. ‏שלום‎
+#    Transliteration: shalom
+#    Meaning: peace
 ```
 
 ---
@@ -53,8 +80,8 @@ Three input modes are supported. They can be mixed within a single argument.
 Pass Hebrew text directly:
 
 ```sh
-gematria אמת              # → 441
-gematria דעת              # → 474
+gematria ‏אמת‎              # → 441
+gematria ‏דעת‎              # → 474
 ```
 
 ### Latin letter aliases (default Latin mode)
@@ -76,15 +103,15 @@ transliteration, use `-t`** (see below).
 When `--transliterate` / `-t` is set, Latin input is interpreted as a phonetic
 spelling of a Hebrew word, not as letter aliases. Two schemes are available:
 
-| Scheme     | Style                                           | Example: `shalom` |
-| ---------- | ----------------------------------------------- | ----------------- |
-| `academic` | strict consonantal (default; vowels dropped)    | שלם → 370         |
-| `israeli`  | modern phonetic with matres lectionis (ו/י/א/ה) | שלום → 376        |
+| Scheme     | Style                                                                                                                               | Example: `shalom`               |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| `academic` | strict consonantal (default; vowels dropped)                                                                                        | <bdi dir="rtl">שלם</bdi> → 370  |
+| `israeli`  | modern phonetic with matres lectionis (<bdi dir="rtl">ו</bdi>/<bdi dir="rtl">י</bdi>/<bdi dir="rtl">א</bdi>/<bdi dir="rtl">ה</bdi>) | <bdi dir="rtl">שלום</bdi> → 376 |
 
 ```sh
 gematria -t shalom                          # academic: 370
 gematria -t --scheme israeli shalom         # israeli:  376
-gematria -t --scheme israeli gadol          # israeli:  43 (גדול)
+gematria -t --scheme israeli gadol          # israeli:  43 (‏גדול‎)
 ```
 
 With `-t`, every Latin token goes through the scheme — there is no fallback
@@ -108,8 +135,8 @@ The `--mispar` / `-m` flag selects the gematria numbering system:
 | `atbash`    | Substitution cipher (Aleph↔Tav, Bet↔Shin...) using Hechrachi values on the substituted letters. |
 
 ```sh
-gematria --mispar gadol שרה        # gadol values
-gematria -m siduri אמת              # ordinal values
+gematria --mispar gadol ‏שרה‎        # gadol values
+gematria -m siduri ‏אמת‎              # ordinal values
 ```
 
 The `--atbash` flag is a **display modifier** (separate from `--mispar
@@ -130,9 +157,9 @@ The `--output` / `-o` flag controls how results are rendered:
 | `json`  | Structured JSON for programmatic consumption.                    |
 
 ```sh
-gematria --output card דעת          # detailed table
-gematria --output json שלום         # JSON for scripts
-gematria -o value שלום              # bare 376
+gematria --output card ‏דעת‎          # detailed table
+gematria --output json ‏שלום‎         # JSON for scripts
+gematria -o value ‏שלום‎              # bare 376
 ```
 
 JSON output is stable across patch versions: existing fields are never
@@ -159,23 +186,22 @@ to change this.
 Plain text (one Hebrew word per line):
 
 ```
-שלום
-אמת
-אור
+‏שלום‎
+‏אמת‎
+‏אור‎
 ```
 
 Or TSV with optional transliteration and meaning columns:
 
-```
-שלום	shalom	peace
-אמת	emet	truth
-אור	or	light
+```tsv
+‏שלום‎	shalom	peace
+‏אמת‎	emet	truth
+‏אור‎	or	light
 ```
 
 - Lines starting with `#` are treated as comments.
 - Blank lines are ignored.
-- The `--mispar` flag affects which gematria system is used to compute values
-  during the search.
+- The `--mispar` flag affects which gematria system is used to compute values during the search.
 
 ---
 
@@ -185,7 +211,7 @@ When no positional argument is given and stdin is not a terminal, lines are
 processed one per line:
 
 ```sh
-printf 'שלום\nאמת\nאור\n' | gematria --output value
+printf '‏שלום‎\n‏אמת‎\n‏אור‎\n' | gematria --output value
 # 376
 # 441
 # 207
@@ -216,13 +242,13 @@ printf 'shalom\nemet\ngadol\n' | gematria -t --scheme israeli -o value
 gematria --find 376 --wordlist words.tsv --output json | jq -r '.results[].word'
 
 # Use in a shell loop
-for w in שלום אמת אור; do
+for w in ‏שלום‎ ‏אמת‎ ‏אור‎; do
   printf '%s = %s\n' "$w" "$(gematria -o value "$w")"
 done
 
 # Compare values across systems
-echo "אמת" | gematria -m hechrachi -o value
-echo "אמת" | gematria -m gadol -o value
+echo "‏אמת‎" | gematria -m hechrachi -o value
+echo "‏אמת‎" | gematria -m gadol -o value
 
 # Compute the same word in both transliteration schemes
 gematria -t --scheme academic -o value shalom

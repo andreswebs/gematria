@@ -14,7 +14,13 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const cliVersion = "0.1.0"
+// cliVersion is overridden at build time via:
+//
+//	-ldflags "-X github.com/andreswebs/gematria/internal/cli.cliVersion=<tag>"
+//
+// The default uses a v-prefixed pseudo-version so dev and released builds
+// share one canonical format. See .local/docs/go-versioning-v-prefix.md.
+var cliVersion = "v0.0.0-dev"
 
 const helpText = `Usage: gematria [OPTIONS] [INPUT...]
 
@@ -377,12 +383,17 @@ func runFind(cfg Config, formatter Formatter, stdout, stderr *os.File, getenv fu
 }
 
 // writeVersion writes the version string to stdout in the appropriate format.
+//
+// The human form keeps the leading "v" (matches the git tag and the GitHub
+// release page). The JSON form strips the "v" so machine-readable consumers
+// see a value that matches the SemVer 2.0.0 spec (which forbids the prefix).
 func writeVersion(stdout *os.File, output string) {
 	if output == "json" {
 		type versionJSON struct {
 			Version string `json:"version"`
 		}
-		b, _ := json.Marshal(versionJSON{Version: cliVersion})
+		jsonVer := strings.TrimPrefix(cliVersion, "v")
+		b, _ := json.Marshal(versionJSON{Version: jsonVer})
 		_, _ = fmt.Fprintln(stdout, string(b))
 	} else {
 		_, _ = fmt.Fprintf(stdout, "gematria %s\n", cliVersion)

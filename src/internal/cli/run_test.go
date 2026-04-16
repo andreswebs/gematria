@@ -115,7 +115,7 @@ func TestRun_shortHelp_exit0(t *testing.T) {
 	}
 }
 
-// --- --version → version line on stdout, exit 0 ---
+// --- --version → human form keeps the v prefix, exit 0 ---
 
 func TestRun_version_exit0(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
@@ -130,15 +130,15 @@ func TestRun_version_exit0(t *testing.T) {
 	if code != 0 {
 		t.Errorf("exit code = %d, want 0 for --version", code)
 	}
-	if !strings.Contains(stdout, "gematria") {
-		t.Errorf("stdout = %q, want it to contain 'gematria'", stdout)
+	if !strings.HasPrefix(stdout, "gematria v") {
+		t.Errorf("stdout = %q, want it to start with 'gematria v' (human form keeps v prefix)", stdout)
 	}
 	if stderr != "" {
 		t.Errorf("stderr = %q, want empty on --version", stderr)
 	}
 }
 
-// --- --version --output json → JSON version ---
+// --- --version --output json → JSON form strips the v prefix, exit 0 ---
 
 func TestRun_versionJSON_exit0(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
@@ -154,6 +154,10 @@ func TestRun_versionJSON_exit0(t *testing.T) {
 	}
 	if !strings.Contains(stdout, `"version"`) {
 		t.Errorf("stdout = %q, want JSON with version field", stdout)
+	}
+	// The JSON value must not carry the v prefix — see writeVersion comment.
+	if strings.Contains(stdout, `"version":"v`) {
+		t.Errorf("stdout = %q, JSON version must not have 'v' prefix (canonical SemVer)", stdout)
 	}
 }
 
