@@ -26,7 +26,38 @@ func writeTempWordListIndex(t *testing.T, content string) string {
 	return f.Name()
 }
 
-// --- Tracer bullet: "gematria index" dispatches to runIndex, produces a SQLite DB ---
+// --- Tracer bullet: no --index-output, GEMATRIA_INDEX_LOCATION set → output goes to that location ---
+
+func TestRun_index_defaultOutput_usesIndexLocation(t *testing.T) {
+	wordlistPath := writeTempWordListIndex(t, "שלום\tshalom\tpeace\n")
+	indexDir := t.TempDir()
+	expectedDB := filepath.Join(indexDir, "gematria.db")
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": indexDir})
+	code := Run([]string{"--index", "--wordlist", wordlistPath}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0; stderr = %q", code, stderr)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, expectedDB) {
+		t.Errorf("stdout = %q, want mention of %q", stdout, expectedDB)
+	}
+	if _, err := os.Stat(expectedDB); err != nil {
+		t.Errorf("expected DB at %q not found: %v", expectedDB, err)
+	}
+}
+
+// --- Tracer bullet: --index dispatches to runIndex, produces a SQLite DB ---
 
 func TestRun_index_dispatch_sqlite_tracer(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\tshalom\tpeace\n")
@@ -36,7 +67,7 @@ func TestRun_index_dispatch_sqlite_tracer(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--wordlist", wordlistPath, "--output", dbPath, "--format", "sqlite"}, stdin, stdoutW, stderrW, noenv)
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "--index-output", dbPath, "--index-format", "sqlite"}, stdin, stdoutW, stderrW, noenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -94,7 +125,7 @@ func TestRun_index_missingWordlist_exit2(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index"}, stdin, stdoutW, stderrW, noenv)
+	code := Run([]string{"--index"}, stdin, stdoutW, stderrW, noenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -117,7 +148,7 @@ func TestRun_index_wordlistNotFound_exit3(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--wordlist", "/nonexistent/words.txt"}, stdin, stdoutW, stderrW, noenv)
+	code := Run([]string{"--index", "--wordlist", "/nonexistent/words.txt"}, stdin, stdoutW, stderrW, noenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -133,7 +164,7 @@ func TestRun_index_wordlistNotFound_exit3(t *testing.T) {
 	}
 }
 
-// --- Invalid --format → exit 2 ---
+// --- Invalid --index-format → exit 2 ---
 
 func TestRun_index_invalidFormat_exit2(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
@@ -142,13 +173,13 @@ func TestRun_index_invalidFormat_exit2(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--wordlist", wordlistPath, "--format", "badformat"}, stdin, stdoutW, stderrW, noenv)
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "--index-format", "badformat"}, stdin, stdoutW, stderrW, noenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
 
 	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (invalid --format)", code)
+		t.Errorf("exit code = %d, want 2 (invalid --index-format)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -158,16 +189,19 @@ func TestRun_index_invalidFormat_exit2(t *testing.T) {
 	}
 }
 
-// --- Default output path: wordlist+".db" for sqlite ---
+// --- Default output path: <location>/gematria.db for sqlite ---
 
 func TestRun_index_defaultOutputPath_sqlite(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
+	indexDir := t.TempDir()
+	expectedDB := filepath.Join(indexDir, "gematria.db")
 
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--wordlist", wordlistPath}, stdin, stdoutW, stderrW, noenv)
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": indexDir})
+	code := Run([]string{"--index", "--wordlist", wordlistPath}, stdin, stdoutW, stderrW, getenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -176,7 +210,6 @@ func TestRun_index_defaultOutputPath_sqlite(t *testing.T) {
 		t.Errorf("exit code = %d, want 0; stderr = %q", code, stderr)
 	}
 
-	expectedDB := wordlistPath + ".db"
 	if !strings.Contains(stdout, expectedDB) {
 		t.Errorf("stdout = %q, want mention of default output path %q", stdout, expectedDB)
 	}
@@ -187,16 +220,19 @@ func TestRun_index_defaultOutputPath_sqlite(t *testing.T) {
 	}
 }
 
-// --- Default output path: wordlist+".idx" for index format ---
+// --- Default output path: <location>/gematria.idx for index format ---
 
 func TestRun_index_defaultOutputPath_index(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
+	indexDir := t.TempDir()
+	expectedIdx := filepath.Join(indexDir, "gematria.idx")
 
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--wordlist", wordlistPath, "--format", "index"}, stdin, stdoutW, stderrW, noenv)
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": indexDir})
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "--index-format", "index"}, stdin, stdoutW, stderrW, getenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -205,7 +241,6 @@ func TestRun_index_defaultOutputPath_index(t *testing.T) {
 		t.Errorf("exit code = %d, want 0; stderr = %q", code, stderr)
 	}
 
-	expectedIdx := wordlistPath + ".idx"
 	if !strings.Contains(stdout, expectedIdx) {
 		t.Errorf("stdout = %q, want mention of default output path %q", stdout, expectedIdx)
 	}
@@ -216,7 +251,7 @@ func TestRun_index_defaultOutputPath_index(t *testing.T) {
 	}
 }
 
-// --- --format index: produces a valid index file readable by NewIndexWordSource ---
+// --- --index-format index: produces a valid index file readable by NewIndexWordSource ---
 
 func TestRun_index_formatIndex_producesValidIdx(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\tshalom\tpeace\n")
@@ -226,7 +261,7 @@ func TestRun_index_formatIndex_producesValidIdx(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--wordlist", wordlistPath, "--output", idxPath, "--format", "index"}, stdin, stdoutW, stderrW, noenv)
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "--index-output", idxPath, "--index-format", "index"}, stdin, stdoutW, stderrW, noenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -253,14 +288,14 @@ func TestRun_index_formatIndex_producesValidIdx(t *testing.T) {
 	}
 }
 
-// --- index --help → usage on stdout, exit 0 ---
+// --- --help includes Indexing: section with --index flag ---
 
 func TestRun_index_help_exit0(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--help"}, stdin, stdoutW, stderrW, noenv)
+	code := Run([]string{"--help"}, stdin, stdoutW, stderrW, noenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -268,8 +303,10 @@ func TestRun_index_help_exit0(t *testing.T) {
 	if code != 0 {
 		t.Errorf("exit code = %d, want 0 for --help", code)
 	}
-	if !strings.Contains(stdout, "--wordlist") {
-		t.Errorf("stdout = %q, want mention of --wordlist in help", stdout)
+	for _, want := range []string{"Indexing:", "--index", "--index-output", "--index-format", "--wordlist"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("stdout missing %q in help output", want)
+		}
 	}
 	if stderr != "" {
 		t.Errorf("stderr = %q, want empty for --help", stderr)
@@ -287,7 +324,7 @@ func TestRun_index_sqlite_roundTrip(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--wordlist", wordlistPath, "--output", dbPath}, stdin, stdoutW, stderrW, noenv)
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "--index-output", dbPath}, stdin, stdoutW, stderrW, noenv)
 	if code != 0 {
 		t.Fatalf("index exit code = %d; stderr = %q", code, readStderr())
 	}
@@ -328,7 +365,7 @@ func TestRun_index_indexFile_roundTrip(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--wordlist", wordlistPath, "--output", idxPath, "--format", "index"}, stdin, stdoutW, stderrW, noenv)
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "--index-output", idxPath, "--index-format", "index"}, stdin, stdoutW, stderrW, noenv)
 	if code != 0 {
 		t.Fatalf("index exit code = %d; stderr = %q", code, readStderr())
 	}
@@ -370,7 +407,7 @@ func TestRun_index_multipleWords(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"index", "--wordlist", wordlistPath, "--output", dbPath}, stdin, stdoutW, stderrW, noenv)
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "--index-output", dbPath}, stdin, stdoutW, stderrW, noenv)
 	stdout := readStdout()
 	stderr := readStderr()
 
@@ -398,7 +435,100 @@ func TestRun_index_multipleWords(t *testing.T) {
 	}
 }
 
-// --- Bad --output path → exit 3 ---
+// --- Default output: directory is auto-created when it does not exist ---
+
+func TestRun_index_defaultOutput_autoCreatesDirectory(t *testing.T) {
+	wordlistPath := writeTempWordListIndex(t, "שלום\n")
+	// Point to a subdirectory that does not yet exist.
+	indexDir := filepath.Join(t.TempDir(), "new", "subdir")
+	expectedDB := filepath.Join(indexDir, "gematria.db")
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": indexDir})
+	code := Run([]string{"--index", "--wordlist", wordlistPath}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0; stderr = %q", code, stderr)
+	}
+	_ = stdout
+	if _, err := os.Stat(expectedDB); err != nil {
+		t.Errorf("expected DB at %q not found (directory not auto-created?): %v", expectedDB, err)
+	}
+}
+
+// --- Invalid GEMATRIA_INDEX_NAME (path separator) → exit 2 ---
+
+func TestRun_index_invalidIndexName_exit2(t *testing.T) {
+	wordlistPath := writeTempWordListIndex(t, "שלום\n")
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{
+		"GEMATRIA_INDEX_LOCATION": t.TempDir(),
+		"GEMATRIA_INDEX_NAME":     "sub/index",
+	})
+	code := Run([]string{"--index", "--wordlist", wordlistPath}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (invalid GEMATRIA_INDEX_NAME); stderr = %q", code, stderr)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty on error", stdout)
+	}
+	if !strings.Contains(stderr, "path separators") {
+		t.Errorf("stderr = %q, want mention of 'path separators'", stderr)
+	}
+}
+
+// --- --index-output flag bypasses GEMATRIA_INDEX_LOCATION entirely ---
+
+func TestRun_index_outputFlagBypassesEnvVars(t *testing.T) {
+	wordlistPath := writeTempWordListIndex(t, "שלום\n")
+	explicitOut := filepath.Join(t.TempDir(), "explicit.db")
+	envDir := t.TempDir() // would be used if --index-output were absent
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": envDir})
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "--index-output", explicitOut}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0; stderr = %q", code, stderr)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+	// Output must be at the explicit path, not inside envDir.
+	if _, err := os.Stat(explicitOut); err != nil {
+		t.Errorf("expected DB at explicit path %q not found: %v", explicitOut, err)
+	}
+	if !strings.Contains(stdout, explicitOut) {
+		t.Errorf("stdout = %q, want mention of explicit output path %q", stdout, explicitOut)
+	}
+	// Nothing should have been written inside envDir.
+	entries, _ := os.ReadDir(envDir)
+	if len(entries) != 0 {
+		t.Errorf("envDir %q contains unexpected files: %v", envDir, entries)
+	}
+}
+
+// --- Bad --index-output path → exit 3 ---
 
 func TestRun_index_badOutputPath_exit3(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
@@ -407,8 +537,8 @@ func TestRun_index_badOutputPath_exit3(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	// Point --output at a directory that does not exist.
-	code := Run([]string{"index", "--wordlist", wordlistPath, "--output", "/nonexistent/dir/out.db"}, stdin, stdoutW, stderrW, noenv)
+	// Point --index-output at a directory that does not exist.
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "--index-output", "/nonexistent/dir/out.db"}, stdin, stdoutW, stderrW, noenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -419,7 +549,185 @@ func TestRun_index_badOutputPath_exit3(t *testing.T) {
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on file error", stdout)
 	}
-	if !strings.Contains(stderr, "/nonexistent/dir/out.db") {
-		t.Errorf("stderr = %q, want output path in error message", stderr)
+	// MkdirAll fails first — check for the directory in the error.
+	if !strings.Contains(stderr, "/nonexistent/dir") {
+		t.Errorf("stderr = %q, want directory path in error message", stderr)
+	}
+}
+
+// --- Conflict: --index and --find are mutually exclusive → exit 2 ---
+
+func TestRun_index_conflict_findMutuallyExclusive(t *testing.T) {
+	wordlistPath := writeTempWordListIndex(t, "שלום\n")
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	code := Run([]string{"--index", "--find", "376", "--wordlist", wordlistPath}, stdin, stdoutW, stderrW, noenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (--index and --find mutually exclusive)", code)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty on error", stdout)
+	}
+	if !strings.Contains(stderr, "--index") || !strings.Contains(stderr, "--find") {
+		t.Errorf("stderr = %q, want mention of both --index and --find", stderr)
+	}
+}
+
+// --- Conflict: --index and --transliterate are mutually exclusive → exit 2 ---
+
+func TestRun_index_conflict_transliterateMutuallyExclusive(t *testing.T) {
+	wordlistPath := writeTempWordListIndex(t, "שלום\n")
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	code := Run([]string{"--index", "-t", "--wordlist", wordlistPath}, stdin, stdoutW, stderrW, noenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (--index and -t mutually exclusive)", code)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty on error", stdout)
+	}
+	if !strings.Contains(stderr, "--index") {
+		t.Errorf("stderr = %q, want mention of --index", stderr)
+	}
+}
+
+// --- Conflict: --index-output without --index → exit 2 ---
+
+func TestRun_index_conflict_indexOutputWithoutIndex(t *testing.T) {
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	code := Run([]string{"--index-output", "foo.db"}, stdin, stdoutW, stderrW, noenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (--index-output requires --index)", code)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty on error", stdout)
+	}
+	if !strings.Contains(stderr, "--index-output") {
+		t.Errorf("stderr = %q, want mention of --index-output", stderr)
+	}
+}
+
+// --- Conflict: --index-format without --index → exit 2 ---
+
+func TestRun_index_conflict_indexFormatWithoutIndex(t *testing.T) {
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	code := Run([]string{"--index-format", "index"}, stdin, stdoutW, stderrW, noenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (--index-format requires --index)", code)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty on error", stdout)
+	}
+	if !strings.Contains(stderr, "--index-format") {
+		t.Errorf("stderr = %q, want mention of --index-format", stderr)
+	}
+}
+
+// --- Conflict: --index with positional argument → exit 2 ---
+
+func TestRun_index_conflict_positionalArgs(t *testing.T) {
+	wordlistPath := writeTempWordListIndex(t, "שלום\n")
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	code := Run([]string{"--index", "--wordlist", wordlistPath, "shalom"}, stdin, stdoutW, stderrW, noenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (--index does not accept positional args)", code)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty on error", stdout)
+	}
+	if !strings.Contains(stderr, "--index") {
+		t.Errorf("stderr = %q, want mention of --index", stderr)
+	}
+}
+
+// --- GEMATRIA_WORDLIST resolves the word list when --wordlist is absent ---
+
+func TestRun_index_envWordlist_resolution(t *testing.T) {
+	wordlistPath := writeTempWordListIndex(t, "שלום\tshalom\tpeace\n")
+	indexDir := t.TempDir()
+	expectedDB := filepath.Join(indexDir, "gematria.db")
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{
+		"GEMATRIA_WORDLIST":       wordlistPath,
+		"GEMATRIA_INDEX_LOCATION": indexDir,
+	})
+	// No --wordlist flag; relies on GEMATRIA_WORDLIST.
+	code := Run([]string{"--index"}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0; stderr = %q", code, stderr)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+	if !strings.Contains(stdout, expectedDB) {
+		t.Errorf("stdout = %q, want mention of %q", stdout, expectedDB)
+	}
+	if _, err := os.Stat(expectedDB); err != nil {
+		t.Errorf("expected DB at %q not found: %v", expectedDB, err)
+	}
+}
+
+// --- Old subcommand syntax regression: "index" as Latin input → exit 1, NOT 0 ---
+
+func TestRun_index_oldSubcommandSyntax_regression(t *testing.T) {
+	wordlistPath := writeTempWordListIndex(t, "שלום\n")
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	// Old syntax: "index" is now treated as an unknown Latin letter name.
+	code := Run([]string{"index", "--wordlist", wordlistPath}, stdin, stdoutW, stderrW, noenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	// "index" is not a valid letter name → exit 1 (input error), not 0.
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1 (old subcommand treated as unknown input); stderr = %q stdout = %q", code, stderr, stdout)
 	}
 }

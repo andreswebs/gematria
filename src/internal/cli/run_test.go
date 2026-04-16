@@ -328,7 +328,10 @@ func TestRun_find_noWordlist_exit2(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	code := Run([]string{"--find", "376"}, stdin, stdoutW, stderrW, noenv)
+	// Point GEMATRIA_INDEX_LOCATION to an empty dir so auto-discovery finds nothing.
+	emptyDir := t.TempDir()
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": emptyDir})
+	code := Run([]string{"--find", "376"}, stdin, stdoutW, stderrW, getenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -342,8 +345,8 @@ func TestRun_find_noWordlist_exit2(t *testing.T) {
 	if !strings.Contains(stderr, "--wordlist") {
 		t.Errorf("stderr = %q, want mention of --wordlist", stderr)
 	}
-	if !strings.Contains(stderr, "GEMATRIA_WORDLIST") {
-		t.Errorf("stderr = %q, want mention of GEMATRIA_WORDLIST", stderr)
+	if !strings.Contains(stderr, "gematria --index") {
+		t.Errorf("stderr = %q, want mention of 'gematria --index' command", stderr)
 	}
 }
 

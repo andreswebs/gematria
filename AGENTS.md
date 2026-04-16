@@ -18,7 +18,13 @@ gematria --output json aleph
 # Get just the number (most compact — ideal for pipelines)
 gematria --output value אמת
 
-# Reverse lookup: find Hebrew words whose value equals N
+# Build a default index once (stored at ~/.local/share/gematria/gematria.db)
+gematria --index --wordlist "${WORDLIST_PATH}"
+
+# Reverse lookup using the default index (no --wordlist needed after indexing)
+gematria --find 441 --output json
+
+# Reverse lookup with an explicit word list (bypasses default index)
 gematria --find 441 --wordlist "${WORDLIST_PATH}" --output json
 
 # Transliterate a Hebrew word from Latin (academic scheme by default)
@@ -41,7 +47,11 @@ gematria --version --output json
 | Bare number for pipelines         | `--output value`               |
 | Select gematria system            | `--mispar hechrachi` (default) |
 | All valid `--mispar` values       | `hechrachi`, `gadol`, `siduri`, `atbash` |
-| Reverse lookup                    | `--find ${VALUE} --wordlist ${WORDLIST_PATH}` |
+| Build index from word list        | `--index --wordlist ${WORDLIST_PATH}` |
+| Set explicit index output path    | `--index-output ${INDEX_PATH}` |
+| Set index format                  | `--index-format sqlite` (default) or `--index-format index` |
+| Reverse lookup (default index)    | `--find ${VALUE}` (requires prior `gematria --index`) |
+| Reverse lookup (explicit list)    | `--find ${VALUE} --wordlist ${WORDLIST_PATH}` |
 | Control result volume             | `--limit ${N}` (default: 20)   |
 | Stop batch on first error         | `--fail-early`                 |
 | Transliterate Latin → Hebrew word | `--transliterate` / `-t`       |
@@ -282,21 +292,26 @@ cat "${WORDS_FILE}" | gematria --output value --fail-early
 
 ## Environment Variables
 
-| Variable            | Equivalent flag    | Notes                                                |
-| ------------------- | ------------------ | ---------------------------------------------------- |
-| `GEMATRIA_MISPAR`   | `--mispar`         | Default gematria system                              |
-| `GEMATRIA_OUTPUT`   | `--output`         | Default output format                                |
-| `GEMATRIA_SCHEME`   | `--scheme`         | Default transliteration scheme; lazy validation (only checked when `-t` is active) |
-| `GEMATRIA_WORDLIST` | `--wordlist`       | Default word list path for `--find`                  |
-| `GEMATRIA_LIMIT`    | `--limit`          | Default result limit for `--find`                    |
-| `NO_COLOR`          | `--no-color`       | Set to any value to disable ANSI color               |
+| Variable                   | Equivalent flag    | Notes                                                |
+| -------------------------- | ------------------ | ---------------------------------------------------- |
+| `GEMATRIA_MISPAR`          | `--mispar`         | Default gematria system                              |
+| `GEMATRIA_OUTPUT`          | `--output`         | Default output format                                |
+| `GEMATRIA_SCHEME`          | `--scheme`         | Default transliteration scheme; lazy validation (only checked when `-t` is active) |
+| `GEMATRIA_WORDLIST`        | `--wordlist`       | Default word list path for `--find` and `--index`    |
+| `GEMATRIA_LIMIT`           | `--limit`          | Default result limit for `--find`                    |
+| `GEMATRIA_INDEX_LOCATION`  | —                  | Directory for index files; overrides `XDG_DATA_HOME` |
+| `GEMATRIA_INDEX_NAME`      | —                  | Index filename without extension (default: `gematria`); must not contain path separators |
+| `XDG_DATA_HOME`            | —                  | XDG base directory (default: `~/.local/share`)       |
+| `NO_COLOR`                 | `--no-color`       | Set to any value to disable ANSI color               |
 
 Precedence: explicit flag > environment variable > built-in default.
 
 Environment variables are validated lazily — only when the feature they
 control is invoked. A stale `GEMATRIA_WORDLIST` does not cause errors unless
 `--find` is used without an overriding `--wordlist` flag. Likewise,
-`GEMATRIA_SCHEME` is only validated when `-t` is set.
+`GEMATRIA_SCHEME` is only validated when `-t` is set. `GEMATRIA_INDEX_LOCATION`
+and `GEMATRIA_INDEX_NAME` are only consulted when `--index` is active or when
+`--find` auto-discovers the default index.
 
 ---
 

@@ -212,6 +212,63 @@ func TestNewIndexWordSource_emptyFile(t *testing.T) {
 	}
 }
 
+// TestWriteIndexFile_idempotent verifies that writing the same words twice
+// (simulating an additive merge) produces no duplicates. WriteIndexFile deduplicates
+// by Hebrew, so appending old+new with overlaps yields the same index.
+func TestWriteIndexFile_idempotent(t *testing.T) {
+	words := []gematria.Word{
+		{Hebrew: "שלום", Transliteration: "shalom", Meaning: "peace"},
+		{Hebrew: "אמת", Transliteration: "emet", Meaning: "truth"},
+	}
+
+	// First write.
+	var buf1 bytes.Buffer
+	count1, err := gematria.WriteIndexFile(&buf1, words)
+	if err != nil {
+		t.Fatalf("first WriteIndexFile: %v", err)
+	}
+	if count1 != 2 {
+		t.Fatalf("first call: expected count=2, got %d", count1)
+	}
+
+	// Read back existing words and merge with the same input (simulates additive).
+	existing, err := gematria.ReadIndexWords(bytes.NewReader(buf1.Bytes()))
+	if err != nil {
+		t.Fatalf("ReadIndexWords: %v", err)
+	}
+	merged := append(existing, words...)
+
+	var buf2 bytes.Buffer
+	count2, err := gematria.WriteIndexFile(&buf2, merged)
+	if err != nil {
+		t.Fatalf("second WriteIndexFile: %v", err)
+	}
+	if count2 != 2 {
+		t.Fatalf("second call: expected count=2 (same words), got %d", count2)
+	}
+
+	// Both outputs should be identical.
+	if buf1.String() != buf2.String() {
+		t.Error("index file content differs after idempotent write")
+	}
+
+	// Verify lookup returns exactly 1 result for שלום.
+	src, err := gematria.NewIndexWordSource(bytes.NewReader(buf2.Bytes()))
+	if err != nil {
+		t.Fatalf("NewIndexWordSource: %v", err)
+	}
+	results, hasMore, err := src.FindByValue(376, gematria.Hechrachi, 20)
+	if err != nil {
+		t.Fatalf("FindByValue: %v", err)
+	}
+	if hasMore {
+		t.Error("hasMore should be false")
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for שלום, got %d", len(results))
+	}
+}
+
 // TestNewIndexWordSource_FindByValue_MatchesInMemory is the oracle test:
 // for the same input data, IndexWordSource must return identical results
 // to the in-memory ParseWordList for every (value, system) query.

@@ -1,9 +1,9 @@
 ## Learnings
 
-- **index subcommand dispatch must precede pflag parsing**: `Run()` checks `args[0] == "index"` before calling `pflag.Parse`. The index subcommand uses its own fresh `pflag.FlagSet`; if dispatch happened after main flag parsing, `--format` and `--wordlist` would be unknown flags to the main set.
+- **~~index subcommand dispatch must precede pflag parsing~~** *(stale — index is now a `--index` flag, not a subcommand)*: Previously `Run()` checked `args[0] == "index"` before pflag parsing. This was removed when indexing became a flag on the main command. The `--index`, `--index-output`, and `--index-format` flags are now part of the unified Config.
 - **pflag and io imports in run.go**: The main `run.go` didn't originally import `pflag` or `io` (those were in `config.go`). Adding `runIndex` to `run.go` requires adding both imports to `run.go` explicitly.
 - **WriteIndexFile sorts entries in memory**: The index file format requires entries sorted by (system, value). WriteIndexFile collects all (system, value, word) triples across all 4 systems and sorts them in memory before writing. This is fine for typical word list sizes.
-- **ParseWordListSlice refactors ParseWordList**: ParseWordList was refactored to call ParseWordListSlice internally, avoiding code duplication. The slice variant is needed by the index subcommand to iterate all words for bulk computation.
+- **ParseWordListSlice refactors ParseWordList**: ParseWordList was refactored to call ParseWordListSlice internally, avoiding code duplication. The slice variant is needed by the `--index` code path to iterate all words for bulk computation.
 - **Backend auto-selection not yet wired**: `runFind` still uses `ParseWordList` (in-memory) regardless of file extension. Opening a .db or .idx file with `--find` will silently read it as a plain text file and find no valid Hebrew words. Backend auto-selection is tracked in wor-22g6.
 
 - **Makefile CMD_DIR was wrong**: `./cmd/server` should be `./cmd/gematria`. Fixed before any other work.
@@ -29,6 +29,10 @@
 - **httptest.NewServer is the right tool for remote backend CLI tests**: Real HTTP round-trips via httptest avoid mocking gematria internals while keeping tests hermetic. The server URL (e.g. `http://127.0.0.1:PORT`) satisfies the "http://" prefix check in openWordSource automatically.
 - **Oracle tests must sort results before comparing**: SQLite and Index backends may return results in slightly different order than in-memory ParseWordList. Sort both result slices by Hebrew text before asserting equality to avoid false failures from ordering differences.
 - **bytes.NewReader vs strings.NewReader for NewIndexWordSource tests**: NewIndexWordSource takes an io.ReadSeeker. strings.NewReader implements io.ReadSeeker; bytes.NewReader also does. When building an index file in-memory for tests, write to a bytes.Buffer then construct a bytes.NewReader from buf.Bytes() to get an io.ReadSeeker without needing a temp file.
+
+- **runIndex getenv threading**: `runIndex` receives `getenv` so it can call `resolveIndexPath`. When adding env-var-consuming logic to a mode handler, thread `getenv` down from `Run()` rather than calling `os.Getenv` directly (maintains testability).
+- **os.MkdirAll before os.Create/WriteIndexSQLite**: Always call `os.MkdirAll(filepath.Dir(outputPath), 0o755)` before attempting to create a file, so the parent directory is guaranteed to exist. The call is idempotent. When MkdirAll fails, return exit code 3 (file error) and include the directory path (not the full file path) in the error message.
+- **Existing tests with hardcoded default output paths must be updated on behavior change**: Tests checking `wordlistPath + ".db"` or `wordlistPath + ".idx"` as the default output needed to be updated to inject `GEMATRIA_INDEX_LOCATION` via `envWith` so the test controls where the file lands. The assertion then checks for `<indexDir>/gematria.db`.
 
 - **sofitMap defined in transliteration_academic.go, shared with israeli**: Both transliteration schemes apply the same sofit substitution (כ→ך, מ→ם, נ→ן, פ→ף, צ→ץ). sofitMap is defined once in transliteration_academic.go and referenced by transliteration_israeli.go — it is not duplicated or re-defined.
 - **israeliVowels must be used or golangci-lint unused fires**: Define israeliVowels as a map[byte]bool and reference it inside israeliHasConsonantAfter() (the lookahead helper) to skip over vowels explicitly. This documents intent and satisfies the linter without adding functional complexity.

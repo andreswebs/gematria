@@ -263,6 +263,56 @@ func TestOpenSQLiteWordSource_plainTextFile(t *testing.T) {
 	}
 }
 
+// TestWriteIndexSQLite_idempotent verifies that calling WriteIndexSQLite twice
+// with the same words does not create duplicates. The second call should insert
+// zero new words and FindByValue should return the same results.
+func TestWriteIndexSQLite_idempotent(t *testing.T) {
+	words := []gematria.Word{
+		{Hebrew: "שלום", Transliteration: "shalom", Meaning: "peace"},
+		{Hebrew: "אמת", Transliteration: "emet", Meaning: "truth"},
+	}
+
+	dbPath := filepath.Join(t.TempDir(), "words.db")
+
+	count1, err := gematria.WriteIndexSQLite(dbPath, words)
+	if err != nil {
+		t.Fatalf("first WriteIndexSQLite: %v", err)
+	}
+	if count1 != 2 {
+		t.Fatalf("first call: expected count=2, got %d", count1)
+	}
+
+	count2, err := gematria.WriteIndexSQLite(dbPath, words)
+	if err != nil {
+		t.Fatalf("second WriteIndexSQLite: %v", err)
+	}
+	if count2 != 0 {
+		t.Fatalf("second call: expected count=0 (no new words), got %d", count2)
+	}
+
+	src, err := gematria.OpenSQLiteWordSource(dbPath)
+	if err != nil {
+		t.Fatalf("OpenSQLiteWordSource: %v", err)
+	}
+	if c, ok := src.(io.Closer); ok {
+		defer func() { _ = c.Close() }()
+	}
+
+	results, hasMore, err := src.FindByValue(376, gematria.Hechrachi, 20)
+	if err != nil {
+		t.Fatalf("FindByValue: %v", err)
+	}
+	if hasMore {
+		t.Error("hasMore should be false")
+	}
+	if len(results) != 1 {
+		t.Fatalf("expected 1 result for שלום, got %d", len(results))
+	}
+	if results[0].Hebrew != "שלום" {
+		t.Errorf("Hebrew: got %q, want %q", results[0].Hebrew, "שלום")
+	}
+}
+
 // TestOpenSQLiteWordSource_FindByValue_MatchesInMemory is the oracle test:
 // for the same input data, SQLiteWordSource must return identical results
 // to the in-memory ParseWordList for every (value, system) query.

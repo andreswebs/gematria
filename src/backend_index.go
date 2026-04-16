@@ -220,6 +220,35 @@ func parseIndexLine(line string) Word {
 	return w
 }
 
+// ReadIndexWords reads an index file and returns the unique words it contains.
+// This is useful for merging an existing index with new words.
+func ReadIndexWords(r io.Reader) ([]Word, error) {
+	br := bufio.NewReader(r)
+	seen := make(map[string]bool)
+	var words []Word
+
+	for {
+		line, err := br.ReadString('\n')
+		trimmed := strings.TrimRight(line, "\r\n")
+
+		if trimmed != "" && !strings.HasPrefix(trimmed, "#") {
+			w := parseIndexLine(trimmed)
+			if w.Hebrew != "" && !seen[w.Hebrew] {
+				seen[w.Hebrew] = true
+				words = append(words, w)
+			}
+		}
+
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("gematria: read index: %w", err)
+		}
+	}
+	return words, nil
+}
+
 // indexEntry is an intermediate record used when building an index file in memory.
 type indexEntry struct {
 	system System
@@ -232,17 +261,20 @@ type indexEntry struct {
 // word, sorts entries by (system, value), and writes them with the magic header.
 //
 // Words whose Hebrew text fails Compute for a given system are silently skipped
-// for that system.
+// for that system. Duplicate Hebrew words are silently skipped (idempotent).
 //
-// Returns (count, error) where count is the number of distinct words indexed
+// Returns (count, error) where count is the number of new distinct words indexed
 // (words that produced at least one valid value entry).
 func WriteIndexFile(w io.Writer, words []Word) (int, error) {
 	systems := ValidSystems()
 
 	var entries []indexEntry
-	indexed := map[string]bool{} // track distinct Hebrew words indexed
+	seen := map[string]bool{} // deduplicate by Hebrew
 
 	for _, word := range words {
+		if seen[word.Hebrew] {
+			continue
+		}
 		any := false
 		for _, sys := range systems {
 			result, err := Compute(word.Hebrew, sys)
@@ -257,7 +289,7 @@ func WriteIndexFile(w io.Writer, words []Word) (int, error) {
 			any = true
 		}
 		if any {
-			indexed[word.Hebrew] = true
+			seen[word.Hebrew] = true
 		}
 	}
 
@@ -288,5 +320,5 @@ func WriteIndexFile(w io.Writer, words []Word) (int, error) {
 	if err := bw.Flush(); err != nil {
 		return 0, err
 	}
-	return len(indexed), nil
+	return len(seen), nil
 }

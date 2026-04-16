@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 
 	gematria "github.com/andreswebs/gematria"
-	"github.com/spf13/pflag"
 )
 
 // cliVersion is overridden at build time via:
@@ -43,103 +43,76 @@ Options:
       --wordlist-format string  Backend override: sqlite|index|remote|memory
   -h, --help                    Show this help message
 
+Indexing:
+      --index                   Build a pre-computed index from --wordlist
+      --index-output string     Output file path (bypasses env var resolution)
+      --index-format string     Index format: sqlite|index (default: sqlite)
+
 Environment Variables:
-  GEMATRIA_MISPAR          Default gematria system (same values as --mispar)
-  GEMATRIA_OUTPUT          Default output format (same values as --output)
-  GEMATRIA_SCHEME          Default transliteration scheme (academic|israeli);
-                           validated lazily, only when -t is active
-  GEMATRIA_WORDLIST        Path to word list file for reverse lookup (--find)
-  GEMATRIA_LIMIT           Maximum number of reverse lookup results (default: 20)
-  GEMATRIA_WORDLIST_TOKEN  Bearer token for authenticated remote word sources
-  NO_COLOR                 Set to any value to disable ANSI color output
+  GEMATRIA_MISPAR           Default gematria system (same values as --mispar)
+  GEMATRIA_OUTPUT           Default output format (same values as --output)
+  GEMATRIA_SCHEME           Default transliteration scheme (academic|israeli);
+                            validated lazily, only when -t is active
+  GEMATRIA_WORDLIST         Path to word list file for reverse lookup (--find)
+  GEMATRIA_LIMIT            Maximum number of reverse lookup results (default: 20)
+  GEMATRIA_WORDLIST_TOKEN   Bearer token for authenticated remote word sources
+  GEMATRIA_INDEX_LOCATION   Directory for index files (default: XDG_DATA_HOME/gematria
+                            or ~/.local/share/gematria)
+  GEMATRIA_INDEX_NAME       Index filename without extension (default: gematria)
+                            Must not contain path separators.
+  XDG_DATA_HOME             XDG base directory (default: ~/.local/share)
+  NO_COLOR                  Set to any value to disable ANSI color output
 
 Examples:
-  gematria א                              Compute aleph (single letter)
-  gematria שלום                           Compute shalom (word)
-  gematria --mispar gadol שרה             Compute with Gadol system
-  gematria --output json שלום             JSON output for scripting
-  echo "שלום" | gematria                  Read Hebrew from stdin
-  gematria -t shalom                      Transliterate "shalom" (academic scheme)
-  gematria -t --scheme israeli gadol      Transliterate "gadol" (israeli scheme)
-  gematria --find 376 --wordlist w.txt    Reverse lookup: find words = 376`
+  gematria א                                    Compute aleph (single letter)
+  gematria שלום                                 Compute shalom (word)
+  gematria --mispar gadol שרה                   Compute with Gadol system
+  gematria --output json שלום                   JSON output for scripting
+  echo "שלום" | gematria                        Read Hebrew from stdin
+  gematria -t shalom                            Transliterate "shalom" (academic scheme)
+  gematria -t --scheme israeli gadol            Transliterate "gadol" (israeli scheme)
+  gematria --index --wordlist words.txt         Build default index once
+  gematria --find 376                           Reverse lookup (uses default index)
+  gematria --find 376 --wordlist w.txt          Reverse lookup with explicit word list`
 
-const indexHelpText = `Usage: gematria index [OPTIONS]
-
-Generate a pre-computed index from a word list for fast reverse lookups.
-
-Options:
-      --wordlist string   Path to input word list (required)
-      --output string     Output file path (default: <wordlist>.db or <wordlist>.idx)
-      --format string     Output format: sqlite|index (default: sqlite)
-  -h, --help              Show this help message
-
-Examples:
-  gematria index --wordlist words.txt
-  gematria index --wordlist words.txt --format index
-  gematria index --wordlist words.txt --output custom.db --format sqlite`
-
-// runIndex implements the "gematria index" subcommand.
-// It reads a word list, computes gematria values for all four systems,
+// runIndex builds a pre-computed index from the word list specified in cfg.
+// It reads cfg.Wordlist, computes gematria values for all four systems,
 // and writes a pre-computed index in the requested format.
-func runIndex(args []string, stdout *os.File, stderr *os.File) int {
-	fs := pflag.NewFlagSet("gematria index", pflag.ContinueOnError)
-	fs.SetOutput(io.Discard)
+func runIndex(cfg Config, stdout *os.File, stderr *os.File, getenv func(string) string) int {
+	outputPath := cfg.IndexOutput
 
-	var wordlistPath string
-	var outputPath string
-	var format string
-	var help bool
-
-	fs.StringVar(&wordlistPath, "wordlist", "", "path to input word list")
-	fs.StringVar(&outputPath, "output", "", "output file path")
-	fs.StringVar(&format, "format", "sqlite", "output format: sqlite|index")
-	fs.BoolVarP(&help, "help", "h", false, "show help")
-
-	if err := fs.Parse(args); err != nil {
-		_, _ = fmt.Fprintf(stderr, "Error: %s\n", err.Error())
-		return 2
-	}
-
-	if help {
-		_, _ = fmt.Fprintln(stdout, indexHelpText)
-		return 0
-	}
-
-	if format != "sqlite" && format != "index" {
-		_, _ = fmt.Fprintf(stderr, "Error: invalid value %q for --format\nvalid values: sqlite, index\n", format)
-		return 2
-	}
-
-	if wordlistPath == "" {
-		_, _ = fmt.Fprintln(stderr, "Error: --wordlist is required for the index subcommand")
-		return 2
-	}
-
-	// Determine default output path.
+	// Determine default output path via env/XDG resolution when --index-output is not set.
 	if outputPath == "" {
-		if format == "sqlite" {
-			outputPath = wordlistPath + ".db"
-		} else {
-			outputPath = wordlistPath + ".idx"
+		var err error
+		outputPath, err = resolveIndexPath(cfg.IndexFormat, getenv)
+		if err != nil {
+			_, _ = fmt.Fprintf(stderr, "Error: %s\n", err.Error())
+			return 2
 		}
 	}
 
+	// Auto-create the parent directory of the output path (idempotent).
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+		_, _ = fmt.Fprintf(stderr, "Error: cannot create directory %q: %v\n", filepath.Dir(outputPath), err)
+		return 3
+	}
+
 	// Open and parse the word list.
-	f, err := os.Open(wordlistPath)
+	f, err := os.Open(cfg.Wordlist)
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "Error: cannot open word list %q: %v\n", wordlistPath, err)
+		_, _ = fmt.Fprintf(stderr, "Error: cannot open word list %q: %v\n", cfg.Wordlist, err)
 		return 3
 	}
 	words, err := gematria.ParseWordListSlice(f)
 	_ = f.Close()
 	if err != nil {
-		_, _ = fmt.Fprintf(stderr, "Error: cannot read word list %q: %v\n", wordlistPath, err)
+		_, _ = fmt.Fprintf(stderr, "Error: cannot read word list %q: %v\n", cfg.Wordlist, err)
 		return 3
 	}
 
 	// Write output in the requested format.
 	var count int
-	switch format {
+	switch cfg.IndexFormat {
 	case "sqlite":
 		count, err = gematria.WriteIndexSQLite(outputPath, words)
 		if err != nil {
@@ -147,6 +120,17 @@ func runIndex(args []string, stdout *os.File, stderr *os.File) int {
 			return 3
 		}
 	case "index":
+		// Merge with existing index file if present.
+		if existing, ferr := os.Open(outputPath); ferr == nil {
+			old, rerr := gematria.ReadIndexWords(existing)
+			_ = existing.Close()
+			if rerr != nil {
+				_, _ = fmt.Fprintf(stderr, "Error: cannot read existing index %q: %v\n", outputPath, rerr)
+				return 3
+			}
+			words = append(old, words...)
+		}
+
 		out, ferr := os.Create(outputPath)
 		if ferr != nil {
 			_, _ = fmt.Fprintf(stderr, "Error: cannot create output file %q: %v\n", outputPath, ferr)
@@ -166,11 +150,6 @@ func runIndex(args []string, stdout *os.File, stderr *os.File) int {
 
 // Run executes the CLI with the given OS primitives and returns an exit code.
 func Run(args []string, stdin *os.File, stdout *os.File, stderr *os.File, getenv func(string) string) int {
-	// Dispatch "index" subcommand before any main flag parsing.
-	if len(args) > 0 && args[0] == "index" {
-		return runIndex(args[1:], stdout, stderr)
-	}
-
 	cfg, err := parseConfig(args, getenv)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "Error: %s\n", err.Error())
@@ -185,6 +164,10 @@ func Run(args []string, stdin *os.File, stdout *os.File, stderr *os.File, getenv
 	if cfg.Version {
 		writeVersion(stdout, cfg.Output)
 		return 0
+	}
+
+	if cfg.Index {
+		return runIndex(cfg, stdout, stderr, getenv)
 	}
 
 	useColor := UseColor(cfg.NoColor, getenv("NO_COLOR"), stdout)
@@ -357,9 +340,14 @@ func openMemoryWordSource(path string) (gematria.WordSource, io.Closer, error) {
 // results to stdout. Errors are written to stderr with appropriate exit codes.
 func runFind(cfg Config, formatter Formatter, stdout, stderr *os.File, getenv func(string) string) int {
 	if cfg.Wordlist == "" {
-		_, _ = fmt.Fprint(stderr, formatter.FormatError(
-			errors.New("--find requires a word list: use --wordlist <path> or set GEMATRIA_WORDLIST")))
-		return 2
+		discovered, found := discoverDefaultIndex(getenv)
+		if found {
+			cfg.Wordlist = discovered
+		} else {
+			_, _ = fmt.Fprint(stderr, formatter.FormatError(
+				errors.New("no word list specified and no default index found; run 'gematria --index --wordlist <path>' to create one, or pass --wordlist explicitly")))
+			return 2
+		}
 	}
 
 	source, closer, err := openWordSource(cfg.Wordlist, cfg.WordlistFormat, getenv)

@@ -23,7 +23,7 @@ and the `index` subcommand.
   transliteration, mixed input.
 - Reverse lookup via `--find` across all backends (memory, index, sqlite,
   remote).
-- `gematria index` subcommand for both output formats (`sqlite`, `index`).
+- `--index` flag for both index formats (`sqlite`, `index`).
 - Error paths and exit codes (0/1/2/3/4).
 - Environment variables and precedence.
 - TTY-sensitive behavior: color, no-args usage hint.
@@ -94,8 +94,8 @@ printf 'שלום\tshalom\tpeace\nאמת\temet\ttruth\nאור\tor\tlight\nאב\ta
 printf 'א\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\nא\n' > "${TEST_DIR}/many-alephs.txt"
 
 # Generate index and sqlite backends from words.tsv.
-gematria index --wordlist "${TEST_DIR}/words.tsv" --format sqlite --output "${TEST_DIR}/words.db"
-gematria index --wordlist "${TEST_DIR}/words.tsv" --format index  --output "${TEST_DIR}/words.idx"
+gematria --index --wordlist "${TEST_DIR}/words.tsv" --index-format sqlite --index-output "${TEST_DIR}/words.db"
+gematria --index --wordlist "${TEST_DIR}/words.tsv" --index-format index  --index-output "${TEST_DIR}/words.idx"
 
 echo "Setup complete. TEST_DIR=${TEST_DIR}"
 ```
@@ -642,68 +642,128 @@ P3 = fix when possible.
 
 ---
 
-### Module: INDEX (`gematria index` subcommand)
+### Module: INDEX (`--index` flag)
 
-#### TC-INDEX-001 — Index subcommand with default (sqlite) format
+#### TC-INDEX-001 — `--index` with default (sqlite) format
 
 **Priority**: P0 · **Type**: Functional
 
 **Steps**:
 
-1. Run `gematria index --wordlist "${TEST_DIR}/words.tsv"` → expect a new file `${TEST_DIR}/words.tsv.db`; stdout reports `Indexed N words → <path>`; exit `0`.
+1. Run `gematria --index --wordlist "${TEST_DIR}/words.tsv"` → expect a new file at the XDG default path (e.g., `~/.local/share/gematria/gematria.db`); stdout reports `Indexed N words → <path>`; exit `0`.
 2. Verify the `.db` file exists and is non-empty.
-3. Verify it's usable: `gematria --find 441 --wordlist "${TEST_DIR}/words.tsv.db"` returns the expected word.
+3. Verify it's usable: `gematria --find 441` (auto-discovers the default index) returns the expected word.
 
 ---
 
-#### TC-INDEX-002 — Index subcommand with explicit format and output
+#### TC-INDEX-002 — `--index` with explicit format and output
 
 **Priority**: P1 · **Type**: Functional
 
 **Steps**:
 
-1. Run `gematria index --wordlist "${TEST_DIR}/words.tsv" --format index --output "${TEST_DIR}/custom.idx"` → expect `custom.idx` file created; exit `0`.
+1. Run `gematria --index --wordlist "${TEST_DIR}/words.tsv" --index-format index --index-output "${TEST_DIR}/custom.idx"` → expect `custom.idx` file created; exit `0`.
 2. Verify: `gematria --find 441 --wordlist "${TEST_DIR}/custom.idx" --output value` returns the correct value.
 
 ---
 
-#### TC-INDEX-003 — Index subcommand missing `--wordlist`
+#### TC-INDEX-003 — `--index` missing `--wordlist`
 
 **Priority**: P1 · **Type**: Functional (Error Path)
 
 **Steps**:
 
-1. Run `gematria index` → expect exit `2`; stderr says `--wordlist is required`.
+1. Run `gematria --index` (no `--wordlist`, no `GEMATRIA_WORDLIST`) → expect exit `2`; stderr mentions `--wordlist` and `GEMATRIA_WORDLIST`.
 
 ---
 
-#### TC-INDEX-004 — Index subcommand invalid `--format`
+#### TC-INDEX-004 — `--index` invalid `--index-format`
 
 **Priority**: P1 · **Type**: Functional (Error Path)
 
 **Steps**:
 
-1. Run `gematria index --wordlist "${TEST_DIR}/words.tsv" --format xml` → expect exit `2`; stderr lists valid formats.
+1. Run `gematria --index --wordlist "${TEST_DIR}/words.tsv" --index-format xml` → expect exit `2`; stderr lists valid formats (`sqlite`, `index`).
 
 ---
 
-#### TC-INDEX-005 — Index subcommand missing wordlist file
+#### TC-INDEX-005 — `--index` missing wordlist file
 
 **Priority**: P1 · **Type**: Functional (Error Path)
 
 **Steps**:
 
-1. Run `gematria index --wordlist /does/not/exist.tsv` → expect exit `3`; stderr names the path.
+1. Run `gematria --index --wordlist /does/not/exist.tsv` → expect exit `3`; stderr names the path.
 
 ---
 
-#### TC-INDEX-006 — Index subcommand `--help`
+#### TC-INDEX-006 — `--help` shows Indexing section
 
 **Priority**: P2 · **Type**: Functional
 
 **Steps**:
 
-1. Run `gematria index --help` → expect exit `0`; stdout shows index-specific usage.
+1. Run `gematria --help` → expect stdout contains `Indexing:` heading with `--index`, `--index-output`, `--index-format`.
+
+---
+
+#### TC-INDEX-007 — Flag conflict: `--index` + `--find`
+
+**Priority**: P1 · **Type**: Functional (Error Path)
+
+**Steps**:
+
+1. Run `gematria --index --find 376 --wordlist "${TEST_DIR}/words.tsv"` → expect exit `2`; stderr says mutually exclusive.
+
+---
+
+#### TC-INDEX-008 — Flag conflict: `--index` + `-t`
+
+**Priority**: P1 · **Type**: Functional (Error Path)
+
+**Steps**:
+
+1. Run `gematria --index -t --wordlist "${TEST_DIR}/words.tsv"` → expect exit `2`; stderr says mutually exclusive.
+
+---
+
+#### TC-INDEX-009 — Flag conflict: `--index-output` without `--index`
+
+**Priority**: P1 · **Type**: Functional (Error Path)
+
+**Steps**:
+
+1. Run `gematria --index-output foo.db שלום` → expect exit `2`; stderr says `--index-output requires --index`.
+
+---
+
+#### TC-INDEX-010 — Flag conflict: positional args with `--index`
+
+**Priority**: P1 · **Type**: Functional (Error Path)
+
+**Steps**:
+
+1. Run `gematria --index --wordlist "${TEST_DIR}/words.tsv" shalom` → expect exit `2`; stderr says `--index does not accept positional arguments`.
+
+---
+
+#### TC-INDEX-011 — `GEMATRIA_WORDLIST` resolves for `--index`
+
+**Priority**: P1 · **Type**: Functional
+
+**Steps**:
+
+1. Run `GEMATRIA_WORDLIST="${TEST_DIR}/words.tsv" gematria --index --index-output "${TEST_DIR}/env-test.db"` → expect exit `0`; `env-test.db` created.
+
+---
+
+#### TC-INDEX-012 — Old subcommand syntax fails (no migration shim)
+
+**Priority**: P1 · **Type**: Functional (Regression)
+
+**Steps**:
+
+1. Run `gematria index --wordlist "${TEST_DIR}/words.tsv" 2>&1; echo "exit=$?"` → expect exit `1` (treated as unknown Latin input "index"), NOT exit `0`.
 
 ---
 
@@ -1264,7 +1324,7 @@ without `-t` should still produce the existing error.
 | Terminal does not render Hebrew RTL correctly        | Verify bytes with `xxd` / `od` rather than relying on visual rendering                                            |
 | Shell variable expansion strips Hebrew characters    | Use `printf` with explicit UTF-8 and double-quote Hebrew positional args                                          |
 | `GEMATRIA_*` env vars leak between test cases        | `unset GEMATRIA_MISPAR GEMATRIA_OUTPUT GEMATRIA_WORDLIST GEMATRIA_LIMIT GEMATRIA_WORDLIST_TOKEN GEMATRIA_SCHEME` between sections |
-| SQLite backend requires CGO or a specific build      | Skip TC-BACKEND-001 if `gematria index --format sqlite` fails at setup                                            |
+| SQLite backend requires CGO or a specific build      | Skip TC-BACKEND-001 if `gematria --index --index-format sqlite` fails at setup                                            |
 | Remote backend tests require external infrastructure | Mark TC-BACKEND-005 as skipped with note if no test server is available                                           |
 | `TEST_DIR` collisions if tests run in parallel       | Use per-run `mktemp` directory (already in setup)                                                                 |
 

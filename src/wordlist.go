@@ -16,9 +16,9 @@ type Word struct {
 }
 
 // WordSource is the interface for reverse-lookup word-list backends.
-// ParseWordList returns the only current in-memory implementation.
-// Future backends (embedded database, pre-computed index) must satisfy
-// this interface without changing the root package API.
+// Three implementations exist: in-memory (ParseWordList), SQLite
+// (OpenSQLiteWordSource), and pre-computed index (NewIndexWordSource).
+// Backends that need cleanup implement io.Closer separately.
 //
 // FindByValue returns at most limit Words whose gematria value in system
 // equals value. hasMore is true when additional matching words exist

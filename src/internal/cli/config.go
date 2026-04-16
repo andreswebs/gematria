@@ -27,12 +27,16 @@ type Config struct {
 	WordlistFormat string          // explicit backend override (sqlite|index|remote|memory); empty = auto-detect
 	Transliterate  bool            // interpret Latin input as Hebrew words (per --scheme)
 	Scheme         string          // transliteration scheme (academic|israeli); default "academic" when Transliterate=true
+	Index          bool            // build a pre-computed index from --wordlist
+	IndexOutput    string          // explicit output file path for index (bypasses env var resolution)
+	IndexFormat    string          // index format: sqlite|index (default: sqlite)
 }
 
 var validSystems = []string{"hechrachi", "gadol", "siduri", "atbash"}
 var validOutputs = []string{"line", "value", "card", "json"}
 var validWordlistFormats = []string{"sqlite", "index", "remote", "memory"}
 var validSchemes = []string{"academic", "israeli"}
+var validIndexFormats = []string{"sqlite", "index"}
 
 // parseConfig resolves flags and environment variables into a Config.
 // Precedence: explicit flag > environment variable > built-in default.
@@ -55,6 +59,9 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 	var wordlistFormat string
 	var transliterate bool
 	var schemeFlag string
+	var index bool
+	var indexOutput string
+	var indexFormat string
 
 	fs.StringVarP(&misparFlag, "mispar", "m", "", "gematria system (hechrachi, gadol, siduri, atbash)")
 	fs.StringVarP(&outputFlag, "output", "o", "", "output format (line, value, card, json)")
@@ -69,6 +76,9 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 	fs.StringVar(&wordlistFormat, "wordlist-format", "", "backend override: sqlite|index|remote|memory")
 	fs.BoolVarP(&transliterate, "transliterate", "t", false, "interpret Latin input as Hebrew words (per --scheme)")
 	fs.StringVar(&schemeFlag, "scheme", "", "transliteration scheme (academic, israeli)")
+	fs.BoolVar(&index, "index", false, "build a pre-computed index from --wordlist")
+	fs.StringVar(&indexOutput, "index-output", "", "output file path for index")
+	fs.StringVar(&indexFormat, "index-format", "sqlite", "index format: sqlite|index")
 
 	if err := fs.Parse(args); err != nil {
 		return Config{}, err
@@ -111,6 +121,31 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 	// Validate --wordlist-format if explicitly provided.
 	if wordlistFormat != "" && !contains(validWordlistFormats, wordlistFormat) {
 		return Config{}, fmt.Errorf("invalid value %q for --wordlist-format\nvalid values: %s", wordlistFormat, strings.Join(validWordlistFormats, ", "))
+	}
+
+	// Validate --index-format when explicitly set.
+	if fs.Changed("index-format") && !contains(validIndexFormats, indexFormat) {
+		return Config{}, fmt.Errorf("invalid value %q for --index-format\nvalid values: %s", indexFormat, strings.Join(validIndexFormats, ", "))
+	}
+
+	// --index conflict checks (all require wordlist to already be resolved above).
+	if index && findSet {
+		return Config{}, fmt.Errorf("--index and --find are mutually exclusive")
+	}
+	if index && transliterate {
+		return Config{}, fmt.Errorf("--index and --transliterate are mutually exclusive")
+	}
+	if fs.Changed("index-output") && !index {
+		return Config{}, fmt.Errorf("--index-output requires --index")
+	}
+	if fs.Changed("index-format") && !index {
+		return Config{}, fmt.Errorf("--index-format requires --index")
+	}
+	if index && len(fs.Args()) > 0 {
+		return Config{}, fmt.Errorf("--index does not accept positional arguments")
+	}
+	if index && wordlist == "" {
+		return Config{}, fmt.Errorf("--index requires --wordlist or GEMATRIA_WORDLIST")
 	}
 
 	// Resolve --limit: flag > GEMATRIA_LIMIT > DefaultLookupLimit
@@ -163,6 +198,9 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 		WordlistFormat: wordlistFormat,
 		Transliterate:  transliterate,
 		Scheme:         scheme,
+		Index:          index,
+		IndexOutput:    indexOutput,
+		IndexFormat:    indexFormat,
 	}, nil
 }
 

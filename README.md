@@ -181,6 +181,37 @@ The word list comes from `--wordlist` or the `GEMATRIA_WORDLIST` environment
 variable. By default at most 20 results are returned; use `--limit` / `-l`
 to change this.
 
+### Indexing
+
+For faster repeated lookups, pre-compute an index from your word list:
+
+```sh
+# Build a SQLite index at the default XDG path (~/.local/share/gematria/gematria.db)
+gematria --index --wordlist words.tsv
+
+# Build at an explicit path
+gematria --index --wordlist words.tsv --index-output /path/to/my.db
+
+# Build as a TSV index file instead
+gematria --index --wordlist words.tsv --index-format index
+```
+
+After indexing, `--find` auto-discovers the default index — no `--wordlist` needed:
+
+```sh
+gematria --find 376
+```
+
+Index flags:
+
+| Flag               | Default    | Notes                                              |
+| ------------------ | ---------- | -------------------------------------------------- |
+| `--index`          | off        | Triggers index-building mode                       |
+| `--index-output`   | (XDG path) | Explicit output path (bypasses env var resolution) |
+| `--index-format`   | `sqlite`   | Format: `sqlite` or `index`                        |
+
+`--index` and `--find` are mutually exclusive — build first, then query.
+
 ### Word list format
 
 Plain text (one Hebrew word per line):
@@ -261,14 +292,17 @@ gematria -t --scheme israeli  -o value shalom
 
 Set these in your shell to change the defaults without repeating flags:
 
-| Variable            | Equivalent flag | Notes                                                              |
-| ------------------- | --------------- | ------------------------------------------------------------------ |
-| `GEMATRIA_MISPAR`   | `--mispar`      | Default gematria system                                            |
-| `GEMATRIA_OUTPUT`   | `--output`      | Default output format                                              |
-| `GEMATRIA_SCHEME`   | `--scheme`      | Default transliteration scheme; only validated when `-t` is active |
-| `GEMATRIA_WORDLIST` | `--wordlist`    | Default word list path for `--find`                                |
-| `GEMATRIA_LIMIT`    | `--limit`       | Default result limit for `--find`                                  |
-| `NO_COLOR`          | `--no-color`    | Set to any value to disable ANSI color output                      |
+| Variable                   | Equivalent flag  | Notes                                                              |
+| -------------------------- | ---------------- | ------------------------------------------------------------------ |
+| `GEMATRIA_MISPAR`          | `--mispar`       | Default gematria system                                            |
+| `GEMATRIA_OUTPUT`          | `--output`       | Default output format                                              |
+| `GEMATRIA_SCHEME`          | `--scheme`       | Default transliteration scheme; only validated when `-t` is active |
+| `GEMATRIA_WORDLIST`        | `--wordlist`     | Default word list path for `--find` and `--index`                  |
+| `GEMATRIA_LIMIT`           | `--limit`        | Default result limit for `--find`                                  |
+| `GEMATRIA_INDEX_LOCATION`  | —                | Directory for index files; overrides `XDG_DATA_HOME`               |
+| `GEMATRIA_INDEX_NAME`      | —                | Index filename without extension (default: `gematria`); no path separators |
+| `XDG_DATA_HOME`            | —                | XDG base directory (default: `~/.local/share`)                     |
+| `NO_COLOR`                 | `--no-color`     | Set to any value to disable ANSI color output                      |
 
 **Precedence**: explicit flag > environment variable > built-in default.
 

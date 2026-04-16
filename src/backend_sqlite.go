@@ -106,7 +106,9 @@ func (s *sqliteWordSource) Close() error {
 // Words whose Hebrew text fails Compute for a given system are indexed for the
 // remaining systems; errors are silently skipped.
 //
-// Returns (count, error) where count is the number of words successfully inserted.
+// Duplicate Hebrew words are silently skipped (idempotent).
+//
+// Returns (count, error) where count is the number of new words inserted.
 func WriteIndexSQLite(path string, words []Word) (int, error) {
 	db, err := sql.Open("sqlite", path)
 	if err != nil {
@@ -117,14 +119,15 @@ func WriteIndexSQLite(path string, words []Word) (int, error) {
 	_, err = db.Exec(`
 		CREATE TABLE IF NOT EXISTS words (
 			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			hebrew TEXT NOT NULL,
+			hebrew TEXT NOT NULL UNIQUE,
 			transliteration TEXT NOT NULL DEFAULT '',
 			meaning TEXT NOT NULL DEFAULT ''
 		);
 		CREATE TABLE IF NOT EXISTS word_values (
 			word_id INTEGER NOT NULL REFERENCES words(id),
 			system TEXT NOT NULL,
-			value INTEGER NOT NULL
+			value INTEGER NOT NULL,
+			UNIQUE(word_id, system)
 		);
 		CREATE INDEX IF NOT EXISTS idx_word_values ON word_values(system, value);
 	`)
@@ -142,21 +145,29 @@ func WriteIndexSQLite(path string, words []Word) (int, error) {
 
 	for _, w := range words {
 		res, err := tx.Exec(
-			`INSERT INTO words (hebrew, transliteration, meaning) VALUES (?, ?, ?)`,
+			`INSERT INTO words (hebrew, transliteration, meaning) VALUES (?, ?, ?)
+			 ON CONFLICT(hebrew) DO NOTHING`,
 			w.Hebrew, w.Transliteration, w.Meaning,
 		)
 		if err != nil {
 			_ = tx.Rollback()
 			return 0, fmt.Errorf("gematria: sqlite insert word: %w", err)
 		}
-		wordID, _ := res.LastInsertId()
+
+		var wordID int64
+		if err := tx.QueryRow(`SELECT id FROM words WHERE hebrew = ?`, w.Hebrew).Scan(&wordID); err != nil {
+			_ = tx.Rollback()
+			return 0, fmt.Errorf("gematria: sqlite query word id: %w", err)
+		}
+
 		for _, sys := range systems {
 			result, err := Compute(w.Hebrew, sys)
 			if err != nil {
 				continue
 			}
 			_, err = tx.Exec(
-				`INSERT INTO word_values (word_id, system, value) VALUES (?, ?, ?)`,
+				`INSERT INTO word_values (word_id, system, value) VALUES (?, ?, ?)
+				 ON CONFLICT(word_id, system) DO NOTHING`,
 				wordID, string(sys), result.Total,
 			)
 			if err != nil {
@@ -164,7 +175,11 @@ func WriteIndexSQLite(path string, words []Word) (int, error) {
 				return 0, fmt.Errorf("gematria: sqlite insert value: %w", err)
 			}
 		}
-		count++
+
+		affected, _ := res.RowsAffected()
+		if affected > 0 {
+			count++
+		}
 	}
 
 	if err := tx.Commit(); err != nil {

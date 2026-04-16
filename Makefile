@@ -45,9 +45,9 @@ $(BIN_DIR):
 $(DIST_DIR):
 	mkdir -p $(DIST_DIR)
 
-dist: build-all | $(DIST_DIR) ## Package cross-platform tarballs into dist/
+dist: build-all | $(DIST_DIR) ## Package cross-platform archives into dist/
 	@set -e; \
-	rm -f $(DIST_DIR)/*.tar.gz $(DIST_DIR)/SHA256SUMS.txt; \
+	rm -f $(DIST_DIR)/*.tar.gz $(DIST_DIR)/*.zip $(DIST_DIR)/SHA256SUMS.txt; \
 	for p in $(PLATFORMS); do \
 	  os=$${p%-*}; arch=$${p#*-}; \
 	  ext=""; [ "$$os" = "windows" ] && ext=".exe"; \
@@ -55,10 +55,14 @@ dist: build-all | $(DIST_DIR) ## Package cross-platform tarballs into dist/
 	  rm -rf "$$stage" && mkdir -p "$$stage"; \
 	  cp "$(BIN_DIR)/$(APP_NAME)-$$os-$$arch$$ext" "$$stage/$(APP_NAME)$$ext"; \
 	  cp LICENSE README.md "$$stage/"; \
-	  tar -C "$(DIST_DIR)" -czf "$$stage.tar.gz" "$$(basename $$stage)"; \
+	  if [ "$$os" = "windows" ]; then \
+	    (cd "$(DIST_DIR)" && zip -rq "$$stage.zip" "$$(basename $$stage)"); \
+	  else \
+	    tar -C "$(DIST_DIR)" -czf "$$stage.tar.gz" "$$(basename $$stage)"; \
+	  fi; \
 	  rm -rf "$$stage"; \
 	done; \
-	cd $(DIST_DIR) && shasum -a 256 *.tar.gz > SHA256SUMS.txt
+	cd $(DIST_DIR) && shasum -a 256 *.tar.gz *.zip > SHA256SUMS.txt
 
 run: ## Run locally with build flags
 	cd $(SRC_DIR) && go run -ldflags="$(LDFLAGS)" $(CMD_DIR)
@@ -87,7 +91,7 @@ clean-local: ## Remove local binary
 	rm -f $(LOCAL_BIN)
 
 clean-dist: ## Remove dist/ artifacts
-	@[ -d "$(DIST_DIR)" ] && rm -f $(DIST_DIR)/*.tar.gz $(DIST_DIR)/SHA256SUMS.txt || true
+	@[ -d "$(DIST_DIR)" ] && rm -f $(DIST_DIR)/*.tar.gz $(DIST_DIR)/*.zip $(DIST_DIR)/SHA256SUMS.txt || true
 
 clean: clean-dist ## Remove all build artifacts
 	@[ -d "$(BIN_DIR)" ] && rm -f $(BIN_DIR)/$(APP_NAME)-* || true

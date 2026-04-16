@@ -38,13 +38,19 @@ src/
   letters.go                   # Letter dictionary (map literals)
   systems.go                   # Gematria system lookup tables
   errors.go                    # Typed error definitions
+  result.go                    # Result and LetterResult types
   wordlist.go                  # WordSource interface, ParseWordList, Word type
+  backend_sqlite.go            # SQLite WordSource backend
+  backend_index.go             # Pre-computed index file WordSource backend
+  transliteration.go           # Transliterate() function, Scheme type
+  transliteration_academic.go  # Academic transliteration scheme table
+  transliteration_israeli.go   # Israeli transliteration scheme table
   cmd/
     gematria/
       main.go                  # Entrypoint: cli.Run() + os.Exit()
   internal/
     cli/
-      run.go                   # Run() entry point, orchestration
+      run.go                   # Run() entry point, orchestration, --index mode
       config.go                # Config struct, flag parsing, env var reading
       output.go                # Formatter interface definition
       line.go                  # LineFormatter
@@ -67,10 +73,11 @@ implementation. The **package boundaries** are what matter.
 - **No `internal/config/`.** Configuration is a CLI concern. Flag parsing,
   env var reading, and precedence resolution live in `internal/cli/`
   alongside the other CLI plumbing.
-- **No CLI framework.** The flag surface is small (~8 flags, no subcommands).
-  `pflag` provides GNU-style long/short flags. A framework like urfave/cli
-  would fight our env var injection and TTY detection requirements without
-  adding value.
+- **No CLI framework.** The flag surface is small (~15 flags, no
+  subcommands). `pflag` provides GNU-style long/short flags. Indexing is
+  triggered by the `--index` flag, not a subcommand. A framework like
+  urfave/cli would fight our env var injection and TTY detection requirements
+  without adding value.
 - **Single flat root package.** The domain is small (27 letters, 4 systems,
   one lookup function, one parser). Sub-packages would create
   cross-dependencies for no benefit. Files provide sufficient organization.
@@ -156,12 +163,17 @@ type WordSource interface {
 }
 ```
 
-`ParseWordList(r io.Reader)` returns an in-memory implementation backed by
-the parsed word list. This is the only implementation for now.
+Three implementations exist:
 
-The interface exists to allow future backends (embedded database, pre-computed
-index, remote source) without changing the public API signature. See
-[wordlist-backends.md](wordlist-backends.md) for details.
+- **In-memory** (`ParseWordList`) — linear scan, computes values on the fly.
+- **SQLite** (`OpenSQLiteWordSource`) — indexed queries against a pre-computed
+  `.db` file. Implements `io.Closer`.
+- **Pre-computed index** (`NewIndexWordSource`) — jump-table lookup into a
+  sorted `.idx` file. Caller manages the underlying `io.ReadSeeker`.
+
+Backend selection (by file extension, companion `.idx` file, or explicit
+`--wordlist-format` flag) lives in `internal/cli/`, not the root package.
+See [wordlist-backends.md](wordlist-backends.md) for details.
 
 `ParseWordList` accepts an `io.Reader`, not a file path. The root package
 never imports `os` — it is pure computation over data.
@@ -208,7 +220,13 @@ Returns an `int` exit code. `main.go` calls `os.Exit()` with it.
 ### 4.2 Config Resolution
 
 A `Config` struct holds the resolved configuration: mispar system, output
-format, wordlist path, limit, atbash flag, no-color flag, fail-early flag.
+format, wordlist path, wordlist format override, limit, transliterate flag,
+transliteration scheme, atbash flag, no-color flag, fail-early flag.
+
+The `--index` flag triggers index-building mode. Index-specific flags
+(`--index-output`, `--index-format`) are parsed in the same Config struct.
+Flag conflicts (`--index` + `--find`, `--index` + `-t`) are rejected at
+parse time.
 
 Resolution follows a strict precedence order:
 

@@ -500,3 +500,172 @@ func TestParseConfig_SchemeEnvInvalidWithTransliterate(t *testing.T) {
 		}
 	}
 }
+
+// --- --index flag ---
+
+func TestParseConfig_IndexFlag(t *testing.T) {
+	cfg, err := parseConfig([]string{"--index", "--wordlist", "/path/words.txt"}, noenv)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Index {
+		t.Error("Index: want true, got false")
+	}
+}
+
+func TestParseConfig_IndexDefaultFalse(t *testing.T) {
+	cfg, err := parseConfig([]string{}, noenv)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.Index {
+		t.Error("Index: want false, got true")
+	}
+}
+
+func TestParseConfig_IndexOutputFlag(t *testing.T) {
+	cfg, err := parseConfig([]string{"--index", "--wordlist", "/path/words.txt", "--index-output", "/path/out.db"}, noenv)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.IndexOutput != "/path/out.db" {
+		t.Errorf("IndexOutput: got %q, want %q", cfg.IndexOutput, "/path/out.db")
+	}
+}
+
+func TestParseConfig_IndexFormatFlag(t *testing.T) {
+	for _, format := range []string{"sqlite", "index"} {
+		cfg, err := parseConfig([]string{"--index", "--wordlist", "/path/words.txt", "--index-format", format}, noenv)
+		if err != nil {
+			t.Fatalf("--index-format %s: unexpected error: %v", format, err)
+		}
+		if cfg.IndexFormat != format {
+			t.Errorf("--index-format %s: got %q, want %q", format, cfg.IndexFormat, format)
+		}
+	}
+}
+
+func TestParseConfig_IndexFormatDefault(t *testing.T) {
+	cfg, err := parseConfig([]string{"--index", "--wordlist", "/path/words.txt"}, noenv)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.IndexFormat != "sqlite" {
+		t.Errorf("IndexFormat: got %q, want %q (default)", cfg.IndexFormat, "sqlite")
+	}
+}
+
+func TestParseConfig_IndexFormatInvalid(t *testing.T) {
+	_, err := parseConfig([]string{"--index", "--wordlist", "/path/words.txt", "--index-format", "tsv"}, noenv)
+	if err == nil {
+		t.Fatal("expected error for invalid --index-format, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "tsv") {
+		t.Errorf("error should mention invalid value 'tsv': %q", msg)
+	}
+	if !strings.Contains(msg, "--index-format") {
+		t.Errorf("error should mention flag name: %q", msg)
+	}
+	for _, v := range []string{"sqlite", "index"} {
+		if !strings.Contains(msg, v) {
+			t.Errorf("error should list valid value %q: %q", v, msg)
+		}
+	}
+}
+
+func TestParseConfig_IndexAndFind_Conflict(t *testing.T) {
+	_, err := parseConfig([]string{"--index", "--find", "376", "--wordlist", "/path/words.txt"}, noenv)
+	if err == nil {
+		t.Fatal("expected error for --index + --find, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "--index") {
+		t.Errorf("error should mention --index: %q", msg)
+	}
+	if !strings.Contains(msg, "--find") {
+		t.Errorf("error should mention --find: %q", msg)
+	}
+}
+
+func TestParseConfig_IndexAndTransliterate_Conflict(t *testing.T) {
+	_, err := parseConfig([]string{"--index", "-t", "--wordlist", "/path/words.txt"}, noenv)
+	if err == nil {
+		t.Fatal("expected error for --index + -t, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "--index") {
+		t.Errorf("error should mention --index: %q", msg)
+	}
+	if !strings.Contains(msg, "--transliterate") {
+		t.Errorf("error should mention --transliterate: %q", msg)
+	}
+}
+
+func TestParseConfig_IndexOutputWithoutIndex(t *testing.T) {
+	_, err := parseConfig([]string{"--index-output", "/path/out.db"}, noenv)
+	if err == nil {
+		t.Fatal("expected error for --index-output without --index, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "--index-output") {
+		t.Errorf("error should mention --index-output: %q", msg)
+	}
+	if !strings.Contains(msg, "--index") {
+		t.Errorf("error should mention --index: %q", msg)
+	}
+}
+
+func TestParseConfig_IndexFormatWithoutIndex(t *testing.T) {
+	_, err := parseConfig([]string{"--index-format", "sqlite"}, noenv)
+	if err == nil {
+		t.Fatal("expected error for --index-format without --index, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "--index-format") {
+		t.Errorf("error should mention --index-format: %q", msg)
+	}
+	if !strings.Contains(msg, "--index") {
+		t.Errorf("error should mention --index: %q", msg)
+	}
+}
+
+func TestParseConfig_IndexWithPositionalArgs(t *testing.T) {
+	_, err := parseConfig([]string{"--index", "--wordlist", "/path/words.txt", "שלום"}, noenv)
+	if err == nil {
+		t.Fatal("expected error for --index + positional args, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "--index") {
+		t.Errorf("error should mention --index: %q", msg)
+	}
+}
+
+func TestParseConfig_IndexWithoutWordlist(t *testing.T) {
+	_, err := parseConfig([]string{"--index"}, noenv)
+	if err == nil {
+		t.Fatal("expected error for --index without --wordlist, got nil")
+	}
+	msg := err.Error()
+	if !strings.Contains(msg, "--wordlist") {
+		t.Errorf("error should mention --wordlist: %q", msg)
+	}
+	if !strings.Contains(msg, "GEMATRIA_WORDLIST") {
+		t.Errorf("error should mention GEMATRIA_WORDLIST: %q", msg)
+	}
+}
+
+func TestParseConfig_IndexWithWordlistEnv(t *testing.T) {
+	cfg, err := parseConfig([]string{"--index"}, envWith(map[string]string{
+		"GEMATRIA_WORDLIST": "/env/words.txt",
+	}))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !cfg.Index {
+		t.Error("Index: want true, got false")
+	}
+	if cfg.Wordlist != "/env/words.txt" {
+		t.Errorf("Wordlist: got %q, want %q", cfg.Wordlist, "/env/words.txt")
+	}
+}

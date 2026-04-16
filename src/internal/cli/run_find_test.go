@@ -2,8 +2,11 @@ package cli
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	gematria "github.com/andreswebs/gematria"
 )
 
 // writeTempWordList creates a temp file in t.TempDir() with the given content
@@ -256,8 +259,11 @@ func TestRun_find_outputJSON_errorIsJSONOnStderr(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	// --find without --wordlist triggers exit 2; with --output json the error must be JSON on stderr
-	code := Run([]string{"--find", "376", "--output", "json"}, stdin, stdoutW, stderrW, noenv)
+	// --find without --wordlist triggers exit 2; with --output json the error must be JSON on stderr.
+	// Point GEMATRIA_INDEX_LOCATION to an empty dir so auto-discovery finds nothing.
+	emptyDir := t.TempDir()
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": emptyDir})
+	code := Run([]string{"--find", "376", "--output", "json"}, stdin, stdoutW, stderrW, getenv)
 
 	stdout := readStdout()
 	stderr := readStderr()
@@ -312,7 +318,12 @@ func TestRun_find_emptyWordlistEnv_exit2(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	getenv := envWith(map[string]string{"GEMATRIA_WORDLIST": ""})
+	// Point GEMATRIA_INDEX_LOCATION to an empty dir so auto-discovery finds nothing.
+	emptyDir := t.TempDir()
+	getenv := envWith(map[string]string{
+		"GEMATRIA_WORDLIST":       "",
+		"GEMATRIA_INDEX_LOCATION": emptyDir,
+	})
 	code := Run([]string{"--find", "376"}, stdin, stdoutW, stderrW, getenv)
 
 	stdout := readStdout()
@@ -326,5 +337,187 @@ func TestRun_find_emptyWordlistEnv_exit2(t *testing.T) {
 	}
 	if stderr == "" {
 		t.Errorf("stderr empty, want error message")
+	}
+}
+
+// --- --find auto-discovers .db at GEMATRIA_INDEX_LOCATION ---
+//
+// This is the tracer bullet: proves the auto-discovery path works end-to-end.
+
+func TestRun_find_autoDiscoversDB(t *testing.T) {
+	// Build a .db file named gematria.db inside a temp dir.
+	indexDir := t.TempDir()
+	dbPath := filepath.Join(indexDir, "gematria.db")
+	words := []gematria.Word{{Hebrew: "שלום", Transliteration: "shalom", Meaning: "peace"}}
+	_, err := gematria.WriteIndexSQLite(dbPath, words)
+	if err != nil {
+		t.Fatalf("WriteIndexSQLite: %v", err)
+	}
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": indexDir})
+	code := Run([]string{"--find", "376", "--output", "value"}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0 (auto-discovered .db); stderr = %q", code, stderr)
+	}
+	if !strings.Contains(stdout, "שלום") {
+		t.Errorf("stdout = %q, want שלום from auto-discovered .db", stdout)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+// --- --find auto-discovers .idx when no .db exists ---
+
+func TestRun_find_autoDiscoversIdx_whenNoDB(t *testing.T) {
+	indexDir := t.TempDir()
+	idxPath := filepath.Join(indexDir, "gematria.idx")
+	words := []gematria.Word{{Hebrew: "שלום", Transliteration: "shalom", Meaning: "peace"}}
+	f, err := os.Create(idxPath)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	_, err = gematria.WriteIndexFile(f, words)
+	_ = f.Close()
+	if err != nil {
+		t.Fatalf("WriteIndexFile: %v", err)
+	}
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": indexDir})
+	code := Run([]string{"--find", "376", "--output", "value"}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0 (auto-discovered .idx); stderr = %q", code, stderr)
+	}
+	if !strings.Contains(stdout, "שלום") {
+		t.Errorf("stdout = %q, want שלום from auto-discovered .idx", stdout)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+// --- --find prefers .db over .idx when both exist at default location ---
+
+func TestRun_find_autoDiscovery_prefersDBOverIdx(t *testing.T) {
+	indexDir := t.TempDir()
+
+	// .db has אמת (441); .idx has שלום (376). Looking up 441 should use the .db.
+	dbWords := []gematria.Word{{Hebrew: "אמת", Transliteration: "emet", Meaning: "truth"}}
+	dbPath := filepath.Join(indexDir, "gematria.db")
+	if _, err := gematria.WriteIndexSQLite(dbPath, dbWords); err != nil {
+		t.Fatalf("WriteIndexSQLite: %v", err)
+	}
+
+	idxWords := []gematria.Word{{Hebrew: "שלום", Transliteration: "shalom", Meaning: "peace"}}
+	idxPath := filepath.Join(indexDir, "gematria.idx")
+	f, err := os.Create(idxPath)
+	if err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	_, err = gematria.WriteIndexFile(f, idxWords)
+	_ = f.Close()
+	if err != nil {
+		t.Fatalf("WriteIndexFile: %v", err)
+	}
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": indexDir})
+	// Look up 441 — only present in the .db, not in the .idx.
+	code := Run([]string{"--find", "441", "--output", "value"}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0 (.db preferred); stderr = %q", code, stderr)
+	}
+	if !strings.Contains(stdout, "אמת") {
+		t.Errorf("stdout = %q, want אמת (.db used, not .idx)", stdout)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
+	}
+}
+
+// --- --find errors with new message when no wordlist and no default index ---
+
+func TestRun_find_noDefaultIndex_errorMentionsGematriaIndex(t *testing.T) {
+	emptyDir := t.TempDir()
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": emptyDir})
+	code := Run([]string{"--find", "376"}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 2 {
+		t.Errorf("exit code = %d, want 2 (no index found)", code)
+	}
+	if stdout != "" {
+		t.Errorf("stdout = %q, want empty on error", stdout)
+	}
+	if !strings.Contains(stderr, "gematria --index") {
+		t.Errorf("stderr = %q, want error mentioning 'gematria --index'", stderr)
+	}
+}
+
+// --- GEMATRIA_WORDLIST env takes precedence over auto-discovery ---
+
+func TestRun_find_wordlistEnv_precedenceOverAutoDiscovery(t *testing.T) {
+	// Index dir has אמת (441); env var points to file with שלום (376).
+	indexDir := t.TempDir()
+	dbWords := []gematria.Word{{Hebrew: "אמת", Transliteration: "emet", Meaning: "truth"}}
+	dbPath := filepath.Join(indexDir, "gematria.db")
+	if _, err := gematria.WriteIndexSQLite(dbPath, dbWords); err != nil {
+		t.Fatalf("WriteIndexSQLite: %v", err)
+	}
+
+	envFile := writeTempWordList(t, "שלום\tshalom\tpeace\n")
+
+	stdoutW, readStdout := pipeCapture(t)
+	stderrW, readStderr := pipeCapture(t)
+	stdin := makeStdinPipe(t, "")
+
+	getenv := envWith(map[string]string{
+		"GEMATRIA_WORDLIST":       envFile,
+		"GEMATRIA_INDEX_LOCATION": indexDir,
+	})
+	// Look up 376 — only in the env var file.
+	code := Run([]string{"--find", "376", "--output", "value"}, stdin, stdoutW, stderrW, getenv)
+
+	stdout := readStdout()
+	stderr := readStderr()
+
+	if code != 0 {
+		t.Errorf("exit code = %d, want 0; stderr = %q", code, stderr)
+	}
+	if !strings.Contains(stdout, "שלום") {
+		t.Errorf("stdout = %q, want שלום (GEMATRIA_WORDLIST used, not auto-discovery)", stdout)
+	}
+	if stderr != "" {
+		t.Errorf("stderr = %q, want empty", stderr)
 	}
 }
