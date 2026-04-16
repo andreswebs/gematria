@@ -50,6 +50,11 @@ jobs:
           go-version-file: src/go.mod
           cache-dependency-path: src/go.sum
 
+      - name: Install golangci-lint
+        uses: golangci/golangci-lint-action@v8
+        with:
+          args: --help
+
       - name: Build release artifacts
         env:
           VERSION: ${{ github.ref_name }}
