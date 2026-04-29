@@ -5,7 +5,7 @@ go 1.26.2
 require (
 	github.com/spf13/pflag v1.0.10
 	golang.org/x/term v0.42.0
-	modernc.org/sqlite v1.49.1
+	modernc.org/sqlite v1.50.0
 )
 
 require (
