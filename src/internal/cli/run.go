@@ -41,6 +41,7 @@ Options:
       --fail-early              Stop on first error when reading from stdin
       --version                 Print version and exit
       --wordlist-format string  Backend override: sqlite|index|remote|memory
+  -l, --limit int               Maximum number of reverse lookup results (default: 20)
   -h, --help                    Show this help message
 
 Indexing:
