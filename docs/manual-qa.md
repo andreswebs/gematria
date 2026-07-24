@@ -24,7 +24,7 @@ and the `index` subcommand.
 - Reverse lookup via `--find` across all backends (memory, index, sqlite,
   remote).
 - `--index` flag for both index formats (`sqlite`, `index`).
-- Error paths and exit codes (0/1/2/3/4).
+- Error paths and exit codes (0/1/64/65/74/78).
 - Environment variables and precedence.
 - TTY-sensitive behavior: color, no-args usage hint.
 - `--help`, `--version`, `--atbash`, `--no-color`, `--fail-early`.
@@ -48,7 +48,7 @@ and the `index` subcommand.
 | Build command     | `make build` (produces `bin/gematria-<os>-<arch>`)                   |
 | Install step      | `cp bin/gematria-<os>-<arch> ~/.local/bin/gematria` (on `PATH`)      |
 | Binary under test | `gematria` on `PATH` (resolved from `~/.local/bin/gematria`)         |
-| Go version        | Per `src/go.mod`                                                     |
+| Go version        | Per `go.mod`                                                     |
 
 **Assumption**: `~/.local/bin` is on `PATH` and the installed `gematria`
 binary is the one produced by `make build` in this working tree. Verify with
@@ -147,9 +147,9 @@ P3 = fix when possible.
 1. Run `gematria aleph` → expect: `Aleph (א) = 1`; exit `0`.
 2. Run `gematria ALEPH` → same result (case-insensitive); exit `0`.
 3. Run `gematria waw` → expect: `Vav (ו) = 6` (alias match); exit `0`.
-4. Run `gematria vaw` → should fail: unrecognized alias. **Verify against current aliases** — if `vaw` is not in the list (only `vav`/`vau`/`waw`), expect exit `1` with suggestions.
+4. Run `gematria vaw` → should fail: unrecognized alias. **Verify against current aliases** — if `vaw` is not in the list (only `vav`/`vau`/`waw`), expect exit `65` with suggestions.
 
-**Note**: Per [letters.go:32](src/letters.go#L32), vav aliases are `vav`, `vau`, `waw`. `vaw` is not a valid alias and should fail with suggestions.
+**Note**: Per [letters.go:32](letters.go#L32), vav aliases are `vav`, `vau`, `waw`. `vaw` is not a valid alias and should fail with suggestions.
 
 ---
 
@@ -184,9 +184,11 @@ P3 = fix when possible.
 **Steps**:
 
 1. Run `gematria --output json אמת` and pipe to `jq`:
+
    ```sh
    gematria --output json אמת | jq .
    ```
+
 2. Verify the JSON has these top-level keys: `input`, `system`, `total`, `letters`.
 3. Verify `total = 441`, `system = "hechrachi"`, `input = "אמת"`.
 4. Verify `letters` is a 3-element array, each with `char`, `name`, `value`, `meaning`, `position`.
@@ -232,7 +234,7 @@ P3 = fix when possible.
 1. Run `gematria --output value aleph mem tav` → expect three separate outputs on stdout, one per argument: `1\n40\n400\n`; exit `0`.
 2. Run `gematria --output line aleph bet` → expect two lines, `Aleph (א) = 1` then `Bet (ב) = 2`.
 
-**Note**: The CLI iterates positional arguments and computes each independently ([run.go:212-222](src/internal/cli/run.go#L212-L222)).
+**Note**: The CLI iterates positional arguments and computes each independently ([run.go:212-222](internal/cli/run.go#L212-L222)).
 
 ---
 
@@ -267,8 +269,8 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria abcאxyz` → expect exit `1`; stdout empty; stderr identifies the invalid character and its position.
-2. Run `gematria --output json "foo"` where `foo` is not an alias → expect exit `1`; stdout empty; stderr contains JSON with `error`, `invalid_input`, `position`, `suggestions` fields.
+1. Run `gematria abcאxyz` → expect exit `65`; stdout empty; stderr identifies the invalid character and its position.
+2. Run `gematria --output json "foo"` where `foo` is not an alias → expect exit `65`; stdout empty; stderr contains JSON with `error`, `invalid_input`, `position`, `suggestions` fields.
 
 ---
 
@@ -280,9 +282,9 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria shen` → expect exit `1`; stderr includes suggestion `shin` (distance 1 from `shen`, length 4, threshold 2).
+1. Run `gematria shen` → expect exit `65`; stderr includes suggestion `shin` (distance 1 from `shen`, length 4, threshold 2).
 2. Run `gematria alef` → should resolve (it's a valid alias for Aleph). Exit `0`.
-3. Run `gematria xyzzy` → expect exit `1`; stderr contains NO suggestions (distance > 2 from any alias).
+3. Run `gematria xyzzy` → expect exit `65`; stderr contains NO suggestions (distance > 2 from any alias).
 4. Run `gematria --output json shen 2>&1 1>/dev/null | jq .` → verify `suggestions` array contains `"shin"`.
 
 ---
@@ -293,7 +295,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --mispar standard אמת` → expect exit `2`; stderr includes `Error:`, the invalid value `standard`, and the valid list `hechrachi, gadol, siduri, atbash`.
+1. Run `gematria --mispar standard אמת` → expect exit `64`; stderr includes `Error:`, the invalid value `standard`, and the valid list `hechrachi, gadol, siduri, atbash`.
 2. Confirm stdout is empty even with `--output json` (flag-level errors are always plain text per [AGENTS.md:167-169](AGENTS.md#L167-L169)).
 
 ---
@@ -304,7 +306,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --output xml אמת` → expect exit `2`; stderr lists valid formats.
+1. Run `gematria --output xml אמת` → expect exit `64`; stderr lists valid formats.
 
 ---
 
@@ -314,7 +316,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --find 1 --wordlist /tmp/x --wordlist-format xml` → expect exit `2`; stderr lists `sqlite, index, remote, memory`.
+1. Run `gematria --find 1 --wordlist /tmp/x --wordlist-format xml` → expect exit `64`; stderr lists `sqlite, index, remote, memory`.
 
 ---
 
@@ -326,9 +328,9 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --mispar hech אמת` → expect exit `2` (NOT interpreted as `hechrachi`).
-2. Run `gematria --output li אמת` → expect exit `2` (NOT interpreted as `line`).
-3. Run `gematria -t --scheme acad shalom` → expect exit `2` (NOT interpreted as `academic`).
+1. Run `gematria --mispar hech אמת` → expect exit `64` (NOT interpreted as `hechrachi`).
+2. Run `gematria --output li אמת` → expect exit `64` (NOT interpreted as `line`).
+3. Run `gematria -t --scheme acad shalom` → expect exit `64` (NOT interpreted as `academic`).
 
 ---
 
@@ -352,11 +354,13 @@ P3 = fix when possible.
 **Steps**:
 
 1. Run:
+
    ```sh
    printf 'שלום\nxyzzy\nאור\n' | gematria --output value
    echo "exit=$?"
    ```
-2. Expect: stdout has `376\n207\n` (only valid lines); stderr has error for line 2 with `line 2:` prefix; exit `4` (partial success).
+
+2. Expect: stdout has `376\n207\n` (only valid lines); stderr has error for line 2 with `line 2:` prefix; exit `1` (partial success).
 
 ---
 
@@ -367,11 +371,13 @@ P3 = fix when possible.
 **Steps**:
 
 1. Run:
+
    ```sh
    printf 'שלום\nxyzzy\nאור\n' | gematria --output value --fail-early
    echo "exit=$?"
    ```
-2. Expect: stdout has `376\n` only (processing stopped at line 2); stderr has error for line 2; exit `1`.
+
+2. Expect: stdout has `376\n` only (processing stopped at line 2); stderr has error for line 2; exit `65`.
 
 ---
 
@@ -381,7 +387,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `printf 'xyzzy\nfoobar\n' | gematria --output value` → expect exit `1` (not 4 — all failed, not partial).
+1. Run `printf 'xyzzy\nfoobar\n' | gematria --output value` → expect exit `65` (not 1 — all failed, not partial).
 
 ---
 
@@ -394,7 +400,7 @@ P3 = fix when possible.
 1. Run `printf 'שלום\nxyzzy\n' | gematria --output json 2>/tmp/err 1>/tmp/out; echo "exit=$?"`.
 2. Verify `/tmp/out` contains one JSON object (success for `שלום`).
 3. Verify `/tmp/err` contains one JSON error object with `line: 2`.
-4. Verify exit code is `4`.
+4. Verify exit code is `1`.
 
 ---
 
@@ -461,8 +467,8 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `GEMATRIA_LIMIT=notanumber gematria --find 1 --wordlist "${TEST_DIR}/words.txt"` → expect exit `2`; stderr mentions `GEMATRIA_LIMIT` must be positive integer.
-2. Run `GEMATRIA_LIMIT=0 gematria --find 1 --wordlist "${TEST_DIR}/words.txt"` → expect exit `2`.
+1. Run `GEMATRIA_LIMIT=notanumber gematria --find 1 --wordlist "${TEST_DIR}/words.txt"` → expect exit `78`; stderr mentions `GEMATRIA_LIMIT` must be positive integer.
+2. Run `GEMATRIA_LIMIT=0 gematria --find 1 --wordlist "${TEST_DIR}/words.txt"` → expect exit `78`.
 3. Run `GEMATRIA_LIMIT=notanumber gematria אמת` → expect exit `0` (lazy validation — LIMIT only checked when --find is used).
 
 ---
@@ -474,7 +480,7 @@ P3 = fix when possible.
 **Steps**:
 
 1. Run `GEMATRIA_WORDLIST=/does/not/exist.tsv gematria אמת -o value` → expect `441`; exit `0` (env var not validated because --find not used).
-2. Run `GEMATRIA_WORDLIST=/does/not/exist.tsv gematria --find 26` → expect exit `3` (file not found); stderr mentions the path.
+2. Run `GEMATRIA_WORDLIST=/does/not/exist.tsv gematria --find 26` → expect exit `74` (file not found); stderr mentions the path.
 
 ---
 
@@ -509,7 +515,7 @@ P3 = fix when possible.
 **Steps**:
 
 1. Unset `GEMATRIA_WORDLIST` (`unset GEMATRIA_WORDLIST`), then run `gematria --find 26`.
-2. Expect exit `2`; stderr explains `--find` needs `--wordlist` or env var.
+2. Expect exit `64`; stderr explains `--find` needs `--wordlist` or env var.
 
 ---
 
@@ -519,7 +525,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --find 26 --wordlist /does/not/exist.tsv` → expect exit `3`; stderr names the path and the OS error.
+1. Run `gematria --find 26 --wordlist /does/not/exist.tsv` → expect exit `74`; stderr names the path and the OS error.
 
 ---
 
@@ -583,14 +589,16 @@ P3 = fix when possible.
 
 **Priority**: P1 · **Type**: Functional
 
-**Per [run.go:258-261](src/internal/cli/run.go#L258-L261)**: if `path+".idx"` exists, it is used.
+**Per [run.go:258-261](internal/cli/run.go#L258-L261)**: if `path+".idx"` exists, it is used.
 
 **Steps**:
 
 1. Copy `${TEST_DIR}/words.idx` alongside `${TEST_DIR}/words.tsv` as `${TEST_DIR}/words.tsv.idx`:
+
    ```sh
    cp "${TEST_DIR}/words.idx" "${TEST_DIR}/words.tsv.idx"
    ```
+
 2. Run `gematria --find 441 --wordlist "${TEST_DIR}/words.tsv" --output json` — this should use the companion .idx (verify via timing or by corrupting the .tsv to prove the .idx is what's being read).
 3. To prove .idx was used: run `echo "corrupted" > "${TEST_DIR}/words.tsv"` and re-run the find. Result should still work if .idx is in use.
 4. Clean up: `rm "${TEST_DIR}/words.tsv.idx"` and restore `words.tsv` from the setup script.
@@ -603,7 +611,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --find 441 --wordlist "${TEST_DIR}/words.db" --wordlist-format memory` → expect exit `3` or an error (treating a SQLite file as a text file will fail parsing or return no results).
+1. Run `gematria --find 441 --wordlist "${TEST_DIR}/words.db" --wordlist-format memory` → expect exit `74` or an error (treating a SQLite file as a text file will fail parsing or return no results).
 
 **Note**: Record exact behavior — if the tool silently treats the binary file as text, that may be acceptable but worth documenting.
 
@@ -632,12 +640,14 @@ P3 = fix when possible.
 **Steps**:
 
 1. For value `441` and system `hechrachi`:
+
    ```sh
    MEM=$(gematria --find 441 --wordlist "${TEST_DIR}/words.tsv" --output json | jq -c '.results')
    DB=$(gematria --find 441 --wordlist "${TEST_DIR}/words.db"  --output json | jq -c '.results')
    IDX=$(gematria --find 441 --wordlist "${TEST_DIR}/words.idx" --output json | jq -c '.results')
    echo "MEM=${MEM}"; echo "DB=${DB}"; echo "IDX=${IDX}"
    ```
+
 2. Verify all three produce equivalent results (word, transliteration, meaning).
 
 ---
@@ -673,7 +683,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --index` (no `--wordlist`, no `GEMATRIA_WORDLIST`) → expect exit `2`; stderr mentions `--wordlist` and `GEMATRIA_WORDLIST`.
+1. Run `gematria --index` (no `--wordlist`, no `GEMATRIA_WORDLIST`) → expect exit `64`; stderr mentions `--wordlist` and `GEMATRIA_WORDLIST`.
 
 ---
 
@@ -683,7 +693,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --index --wordlist "${TEST_DIR}/words.tsv" --index-format xml` → expect exit `2`; stderr lists valid formats (`sqlite`, `index`).
+1. Run `gematria --index --wordlist "${TEST_DIR}/words.tsv" --index-format xml` → expect exit `64`; stderr lists valid formats (`sqlite`, `index`).
 
 ---
 
@@ -693,7 +703,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --index --wordlist /does/not/exist.tsv` → expect exit `3`; stderr names the path.
+1. Run `gematria --index --wordlist /does/not/exist.tsv` → expect exit `74`; stderr names the path.
 
 ---
 
@@ -713,7 +723,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --index --find 376 --wordlist "${TEST_DIR}/words.tsv"` → expect exit `2`; stderr says mutually exclusive.
+1. Run `gematria --index --find 376 --wordlist "${TEST_DIR}/words.tsv"` → expect exit `64`; stderr says mutually exclusive.
 
 ---
 
@@ -723,7 +733,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --index -t --wordlist "${TEST_DIR}/words.tsv"` → expect exit `2`; stderr says mutually exclusive.
+1. Run `gematria --index -t --wordlist "${TEST_DIR}/words.tsv"` → expect exit `64`; stderr says mutually exclusive.
 
 ---
 
@@ -733,7 +743,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --index-output foo.db שלום` → expect exit `2`; stderr says `--index-output requires --index`.
+1. Run `gematria --index-output foo.db שלום` → expect exit `64`; stderr says `--index-output requires --index`.
 
 ---
 
@@ -743,7 +753,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --index --wordlist "${TEST_DIR}/words.tsv" shalom` → expect exit `2`; stderr says `--index does not accept positional arguments`.
+1. Run `gematria --index --wordlist "${TEST_DIR}/words.tsv" shalom` → expect exit `64`; stderr says `--index does not accept positional arguments`.
 
 ---
 
@@ -763,7 +773,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria index --wordlist "${TEST_DIR}/words.tsv" 2>&1; echo "exit=$?"` → expect exit `1` (treated as unknown Latin input "index"), NOT exit `0`.
+1. Run `gematria index --wordlist "${TEST_DIR}/words.tsv" 2>&1; echo "exit=$?"` → expect exit `65` (treated as unknown Latin input "index"), NOT exit `0`.
 
 ---
 
@@ -1024,9 +1034,9 @@ academic) also errors.
 
 **Steps**:
 
-1. Run `gematria -t qzxw --output value 2>&1; echo "exit=$?"` → expect exit `1`; stderr identifies the unmappable input. (Wait — `q` and `z` ARE mapped per §4.1.2: q→ק, z→ז. `x` is mapped to ח. `w` is mapped to ו. So `qzxw` actually parses fully → קזחו = 100+7+8+6 = 121. Pick a truly unmappable input.)
-2. Run `gematria -t 'h3llo' --output value 2>&1; echo "exit=$?"` → expect exit `1` (digit `3` is unmappable per §4.7).
-3. Run `gematria -t aeiou --output value 2>&1; echo "exit=$?"` → expect exit `1` for academic (all vowels drop → empty sequence).
+1. Run `gematria -t qzxw --output value 2>&1; echo "exit=$?"` → expect exit `65`; stderr identifies the unmappable input. (Wait — `q` and `z` ARE mapped per §4.1.2: q→ק, z→ז. `x` is mapped to ח. `w` is mapped to ו. So `qzxw` actually parses fully → קזחו = 100+7+8+6 = 121. Pick a truly unmappable input.)
+2. Run `gematria -t 'h3llo' --output value 2>&1; echo "exit=$?"` → expect exit `65` (digit `3` is unmappable per §4.7).
+3. Run `gematria -t aeiou --output value 2>&1; echo "exit=$?"` → expect exit `65` for academic (all vowels drop → empty sequence).
 4. Run `gematria -t --output json 'h3llo' 2>/dev/null; gematria -t --output json 'h3llo' 2>&1 1>/dev/null | jq .` → expect JSON error with `error`, `invalid_input`, `scheme`, `position`, `suggestions: []`.
 
 ---
@@ -1036,11 +1046,11 @@ academic) also errors.
 **Priority**: P0 · **Type**: Functional (Error Path)
 
 **Per [transliteration.md §5.3](specs/transliteration.md)**: invalid scheme
-flag is exit `2` with valid-list message.
+flag is exit `64` with valid-list message.
 
 **Steps**:
 
-1. Run `gematria -t --scheme bogus shalom 2>&1; echo "exit=$?"` → expect exit `2`; stderr lists `academic, israeli`.
+1. Run `gematria -t --scheme bogus shalom 2>&1; echo "exit=$?"` → expect exit `64`; stderr lists `academic, israeli`.
 2. Run `gematria -t --scheme "" shalom 2>&1; echo "exit=$?"` → behavior depends on whether empty-string is treated as "not provided" (default would apply). Record the actual behavior.
 
 ---
@@ -1077,7 +1087,7 @@ validated when `-t` is active.
 **Steps**:
 
 1. Run `GEMATRIA_SCHEME=bogus gematria aleph --output value` → expect `1` (without `-t`, env not validated); exit `0`.
-2. Run `GEMATRIA_SCHEME=bogus gematria -t shalom 2>&1; echo "exit=$?"` → expect exit `2`; stderr lists valid schemes (with `-t`, env IS validated).
+2. Run `GEMATRIA_SCHEME=bogus gematria -t shalom 2>&1; echo "exit=$?"` → expect exit `78`; stderr lists valid schemes (with `-t`, env IS validated).
 
 ---
 
@@ -1143,9 +1153,9 @@ orthogonally with all other flags.
 **Steps**:
 
 1. Run `gematria -t --scheme israeli --mispar gadol shalom --output value` → expect `936` (300+30+6+600 with sofit-mem-gadol=600).
-2. Run `gematria -t --scheme academic --mispar siduri shalom --output value` → expect `64` (siduri ordinals: ש=21, ל=12, ם=13 → wait, siduri sofit = base position; ם=13. Total: 21+12+13 = 46). Re-derive: per [systems.go siduri table](src/systems.go), ם=13. So siduri shalom-academic = 21+12+13 = 46. Correct expected: `46`.
+2. Run `gematria -t --scheme academic --mispar siduri shalom --output value` → expect `64` (siduri ordinals: ש=21, ל=12, ם=13 → wait, siduri sofit = base position; ם=13. Total: 21+12+13 = 46). Re-derive: per [systems.go siduri table](systems.go), ם=13. So siduri shalom-academic = 21+12+13 = 46. Correct expected: `46`.
 
-**Note**: Verify the siduri value against [systems.go](src/systems.go) before
+**Note**: Verify the siduri value against [systems.go](systems.go) before
 declaring a failure.
 
 ---
@@ -1170,7 +1180,7 @@ display applies to the resolved Hebrew letters.
 
 **Steps**:
 
-1. Run `gematria -t --scheme israeli --mispar atbash shalom --output value` → expect the Atbash-substituted value (per [systems.go atbash table](src/systems.go): ש→2, ל→20, ו→80, ם→? — sofit forms map through normal form, so ם → ל's pair → wait, actually the atbash table in systems.go has `'ם': 10`. So 2+20+80+10 = 112. Verify: ש=2, ל=20, ו=80, ם=10 → 112).
+1. Run `gematria -t --scheme israeli --mispar atbash shalom --output value` → expect the Atbash-substituted value (per [systems.go atbash table](systems.go): ש→2, ל→20, ו→80, ם→? — sofit forms map through normal form, so ם → ל's pair → wait, actually the atbash table in systems.go has `'ם': 10`. So 2+20+80+10 = 112. Verify: ש=2, ל=20, ו=80, ם=10 → 112).
 
 ---
 
@@ -1181,8 +1191,8 @@ display applies to the resolved Hebrew letters.
 **Steps**:
 
 1. Run `printf 'shalom\nemet\ngadol\n' | gematria -t --scheme israeli --output value` → expect three lines: `376`, `441`, `43`; exit `0`.
-2. Run `printf 'shalom\nh3llo\nemet\n' | gematria -t --scheme israeli --output value 2>/tmp/err 1>/tmp/out; echo "exit=$?"` → expect stdout = `376\n441\n`, stderr contains line-2 error, exit `4` (partial success).
-3. Run `printf 'shalom\nh3llo\n' | gematria -t --scheme israeli --output value --fail-early; echo "exit=$?"` → expect stdout = `376\n` only, exit `1`.
+2. Run `printf 'shalom\nh3llo\nemet\n' | gematria -t --scheme israeli --output value 2>/tmp/err 1>/tmp/out; echo "exit=$?"` → expect stdout = `376\n441\n`, stderr contains line-2 error, exit `1` (partial success).
+3. Run `printf 'shalom\nh3llo\n' | gematria -t --scheme israeli --output value --fail-early; echo "exit=$?"` → expect stdout = `376\n` only, exit `65`.
 
 ---
 
@@ -1209,7 +1219,7 @@ without `-t` should still produce the existing error.
 
 **Steps**:
 
-1. Run `gematria gadol 2>&1; echo "exit=$?"` → expect exit `1`; stderr contains `unknown letter name "gadol"` with Levenshtein suggestion (`gamel` per existing alias for ג).
+1. Run `gematria gadol 2>&1; echo "exit=$?"` → expect exit `65`; stderr contains `unknown letter name "gadol"` with Levenshtein suggestion (`gamel` per existing alias for ג).
 2. Run `gematria gadol --output json 2>&1 1>/dev/null | jq 'has("scheme")'` → expect `false` (no scheme attempted).
 
 ---
@@ -1260,7 +1270,7 @@ without `-t` should still produce the existing error.
 
 **Steps**:
 
-1. Run `gematria --bogus-flag` → expect exit `2`; stderr contains error message.
+1. Run `gematria --bogus-flag` → expect exit `64`; stderr contains error message.
 
 ---
 
@@ -1297,11 +1307,13 @@ without `-t` should still produce the existing error.
 **Steps**:
 
 1. Run:
+
    ```sh
    for word in שלום אמת אור; do
      echo -n "${word} = "; gematria --output value "${word}"
    done
    ```
+
 2. Expect three lines, each `<word> = <value>`; exit `0`.
 
 ---

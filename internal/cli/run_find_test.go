@@ -110,9 +110,9 @@ func TestRun_find_limitEnvVar_restrictsResults(t *testing.T) {
 	}
 }
 
-// --- GEMATRIA_LIMIT=invalid with --find → exit 2 ---
+// --- GEMATRIA_LIMIT=invalid with --find → exit 78 ---
 
-func TestRun_find_limitEnvVar_invalid_withFind_exit2(t *testing.T) {
+func TestRun_find_limitEnvVar_invalid_withFind_exit78(t *testing.T) {
 	path := writeTempWordList(t, "שלום\n")
 
 	stdoutW, readStdout := pipeCapture(t)
@@ -125,8 +125,8 @@ func TestRun_find_limitEnvVar_invalid_withFind_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 for invalid GEMATRIA_LIMIT with --find", code)
+	if code != 78 {
+		t.Errorf("exit code = %d, want 78 for invalid GEMATRIA_LIMIT with --find", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on config error", stdout)
@@ -259,7 +259,7 @@ func TestRun_find_outputJSON_errorIsJSONOnStderr(t *testing.T) {
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
 
-	// --find without --wordlist triggers exit 2; with --output json the error must be JSON on stderr.
+	// --find without --wordlist triggers exit 64; with --output json the error must be JSON on stderr.
 	// Point GEMATRIA_INDEX_LOCATION to an empty dir so auto-discovery finds nothing.
 	emptyDir := t.TempDir()
 	getenv := envWith(map[string]string{"GEMATRIA_INDEX_LOCATION": emptyDir})
@@ -268,8 +268,8 @@ func TestRun_find_outputJSON_errorIsJSONOnStderr(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -311,9 +311,9 @@ func TestRun_find_outputJSON_hasMoreField(t *testing.T) {
 	}
 }
 
-// --- GEMATRIA_WORDLIST="" (empty string) with --find → exit 2 ---
+// --- GEMATRIA_WORDLIST="" (empty string) with --find → exit 64 ---
 
-func TestRun_find_emptyWordlistEnv_exit2(t *testing.T) {
+func TestRun_find_emptyWordlistEnv_exit64(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -329,8 +329,8 @@ func TestRun_find_emptyWordlistEnv_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (empty GEMATRIA_WORDLIST treated as absent)", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 (empty GEMATRIA_WORDLIST treated as absent)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on config error", stdout)
@@ -473,8 +473,8 @@ func TestRun_find_noDefaultIndex_errorMentionsGematriaIndex(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (no index found)", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 (no index found)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)

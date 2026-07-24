@@ -28,11 +28,11 @@ func (e *batchLineError) Unwrap() error {
 // processBatch reads lines from scanner, applies compute to each, and writes
 // results to stdout or errors (with line number) to stderr.
 //
-// Return codes:
-//   - 0: all lines succeeded (or no lines)
-//   - 1: all lines failed (or failEarly stopped on InvalidCharError/UnknownNameError)
-//   - 2: failEarly stopped on InvalidSystemError
-//   - 4: partial success (some lines succeeded, some failed)
+// Return codes (per docs/adr/0001-exit-code-taxonomy.md):
+//   - 0:  all lines succeeded (or no lines)
+//   - 1:  partial success (some lines succeeded, some failed) — recoverable result
+//   - 65: all lines failed — data error (or failEarly stopped on invalid char/name/word)
+//   - 78: failEarly stopped on invalid system/scheme from an env var
 func processBatch(
 	scanner *bufio.Scanner,
 	compute func(string) (gematria.Result, error),
@@ -63,22 +63,24 @@ func processBatch(
 
 	switch {
 	case errorCount > 0 && successCount > 0:
-		return 4
+		return exitPartialBatch
 	case errorCount > 0:
-		return 1
+		return exitDataErr
 	default:
-		return 0
+		return exitOK
 	}
 }
 
 // exitCodeForBatchError maps a compute error to the appropriate exit code for
-// failEarly mode. Misuse-class errors (invalid system, invalid scheme) → 2;
-// all other input errors (invalid char, unknown name, unknown word) → 1.
+// failEarly mode. An invalid system/scheme can only reach compute time via a
+// lazily validated env var (flag values are validated eagerly at parse time),
+// so it is a configuration error (78); all other input errors (invalid char,
+// unknown name, unknown word) are data errors (65).
 func exitCodeForBatchError(err error) int {
 	var ise *gematria.InvalidSystemError
 	var iscse *gematria.InvalidSchemeError
 	if errors.As(err, &ise) || errors.As(err, &iscse) {
-		return 2
+		return exitConfigErr
 	}
-	return 1
+	return exitDataErr
 }

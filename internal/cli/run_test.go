@@ -43,9 +43,9 @@ func TestRun_positionalArg_exit0(t *testing.T) {
 	}
 }
 
-// --- Config error: bad --output → exit 2, error on stderr ---
+// --- Config error: bad --output → exit 64, error on stderr ---
 
-func TestRun_badOutput_exit2(t *testing.T) {
+func TestRun_badOutput_exit64(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -55,8 +55,8 @@ func TestRun_badOutput_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 for invalid --output", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 for invalid --output", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on config error", stdout)
@@ -161,9 +161,9 @@ func TestRun_versionJSON_exit0(t *testing.T) {
 	}
 }
 
-// --- Invalid Hebrew positional arg → exit 1, error on stderr, nothing on stdout ---
+// --- Invalid Hebrew positional arg → exit 65, error on stderr, nothing on stdout ---
 
-func TestRun_invalidHebrew_exit1(t *testing.T) {
+func TestRun_invalidHebrew_exit65(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -173,8 +173,8 @@ func TestRun_invalidHebrew_exit1(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1 for unknown name", code)
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65 for unknown name", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -184,9 +184,9 @@ func TestRun_invalidHebrew_exit1(t *testing.T) {
 	}
 }
 
-// --- InvalidSystemError via env var during compute → exit 2 ---
+// --- InvalidSystemError via env var during compute → exit 78 ---
 
-func TestRun_invalidSystemEnv_exit2(t *testing.T) {
+func TestRun_invalidSystemEnv_exit78(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -198,8 +198,8 @@ func TestRun_invalidSystemEnv_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 for InvalidSystemError", code)
+	if code != 78 {
+		t.Errorf("exit code = %d, want 78 for InvalidSystemError", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -229,9 +229,9 @@ func TestRun_multipleArgs_allComputed(t *testing.T) {
 	}
 }
 
-// --- First positional arg error → stops, returns 1 ---
+// --- First positional arg error → stops, returns 65 ---
 
-func TestRun_firstArgError_exit1_noFurtherOutput(t *testing.T) {
+func TestRun_firstArgError_exit65_noFurtherOutput(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -242,8 +242,8 @@ func TestRun_firstArgError_exit1_noFurtherOutput(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1", code)
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty (error stops further processing)", stdout)
@@ -277,17 +277,17 @@ func TestRun_stdinBatch_exit0(t *testing.T) {
 	}
 }
 
-// --- Stdin batch partial failure → exit 4 ---
+// --- Stdin batch partial failure → exit 1 ---
 
-func TestRun_stdinBatch_partialFailure_exit4(t *testing.T) {
+func TestRun_stdinBatch_partialFailure_exit1(t *testing.T) {
 	stdoutW, _ := pipeCapture(t)
 	stderrW, _ := pipeCapture(t)
 	stdin := makeStdinPipe(t, "א\nbad_latin\n")
 
 	code := Run([]string{}, stdin, stdoutW, stderrW, noenv)
 
-	if code != 4 {
-		t.Errorf("exit code = %d, want 4 for partial batch failure", code)
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1 for partial batch failure", code)
 	}
 }
 
@@ -321,9 +321,9 @@ func TestRun_find_success_exit0(t *testing.T) {
 	}
 }
 
-// --- Reverse lookup: --find without wordlist → exit 2 ---
+// --- Reverse lookup: --find without wordlist → exit 64 ---
 
-func TestRun_find_noWordlist_exit2(t *testing.T) {
+func TestRun_find_noWordlist_exit64(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -336,8 +336,8 @@ func TestRun_find_noWordlist_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty", stdout)
@@ -350,9 +350,9 @@ func TestRun_find_noWordlist_exit2(t *testing.T) {
 	}
 }
 
-// --- Reverse lookup: --find with non-existent file → exit 3 ---
+// --- Reverse lookup: --find with non-existent file → exit 74 ---
 
-func TestRun_find_fileNotFound_exit3(t *testing.T) {
+func TestRun_find_fileNotFound_exit74(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -362,8 +362,8 @@ func TestRun_find_fileNotFound_exit3(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 3 {
-		t.Errorf("exit code = %d, want 3", code)
+	if code != 74 {
+		t.Errorf("exit code = %d, want 74", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty", stdout)

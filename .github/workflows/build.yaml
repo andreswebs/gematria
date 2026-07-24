@@ -51,4 +51,5 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --title "${VERSION}" \
             --generate-notes \
-            dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt
+            dist/*.tar.gz dist/*.zip dist/SHA256SUMS.txt \
+            dist/*.spdx.json dist/*.sigstore.json

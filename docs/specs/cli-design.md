@@ -407,16 +407,22 @@ Every error message should follow this structure:
 
 ### 6.2 Exit Codes
 
-| Code | Meaning                                                          |
-| ---- | ---------------------------------------------------------------- |
-| 0    | Success                                                          |
-| 1    | Input error (invalid character, unknown transliteration)         |
-| 2    | CLI misuse (invalid flag, invalid env var value)                 |
-| 3    | File error (word list not found, unreadable)                     |
-| 4    | Partial success (stdin batch: some lines succeeded, some failed) |
+Exit codes follow the fleet taxonomy adopted in
+[docs/adr/0001-exit-code-taxonomy.md](../adr/0001-exit-code-taxonomy.md).
 
-Exit code 2 aligns with the GNU/Bash convention for incorrect command usage.
-Exit code 4 only applies to stdin batch processing (see section 6.5).
+| Code | Meaning                                                              |
+| ---- | -------------------------------------------------------------------- |
+| 0    | Success                                                              |
+| 1    | Partial batch success (stdin batch: some lines succeeded, some failed) |
+| 64   | Usage error (invalid flag value, mutually exclusive flags, missing required input) |
+| 65   | Data error (invalid character, unknown transliteration, malformed word list, all batch lines failed) |
+| 74   | I/O error (word list or index file/backend not found, unreadable, unwritable) |
+| 78   | Configuration error (invalid environment variable value)             |
+
+The failure classes use the BSD `sysexits.h` range (64, 65, 74, 78), which
+supersedes the earlier GNU/Bash exit-code-2 convention. Exit code 1 is a
+recoverable-result class and only applies to stdin batch processing (see
+section 6.5).
 
 Using distinct exit codes for different error classes lets agents branch on
 the failure type without parsing the error message.
@@ -436,13 +442,14 @@ stdout clean for piping regardless of whether the input was slightly wrong.
 
 When processing multiple lines from stdin, the CLI continues processing all
 lines by default. Valid lines produce results on stdout; invalid lines produce
-per-line errors on stderr (including the line number). If any line fails, the
-exit code is 4 (partial success). If all lines fail, the exit code is 1
-(input error).
+per-line errors on stderr (including the line number). If some lines fail and
+some succeed, the exit code is 1 (partial batch success). If all lines fail,
+the exit code is 65 (data error).
 
 A `--fail-early` flag stops processing on the first error and exits
-immediately with the appropriate error code (1, 2, or 3). This is useful for
-agents that want strict all-or-nothing behavior.
+immediately with the appropriate error code (65 for a data error, or 78 when
+an invalid environment variable value surfaces at compute time). This is
+useful for agents that want strict all-or-nothing behavior.
 
 ### 6.6 Environment Variable Validation
 

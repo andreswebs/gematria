@@ -73,7 +73,7 @@ func TestProcessBatch_allSuccess_returns0(t *testing.T) {
 
 // --- Single line fails → exit 1 ---
 
-func TestProcessBatch_allErrors_returns1(t *testing.T) {
+func TestProcessBatch_allErrors_returns65(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 
@@ -85,8 +85,8 @@ func TestProcessBatch_allErrors_returns1(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1", code)
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on all-error", stdout)
@@ -96,9 +96,9 @@ func TestProcessBatch_allErrors_returns1(t *testing.T) {
 	}
 }
 
-// --- Mixed success and failure → exit 4 ---
+// --- Mixed success and failure → exit 1 ---
 
-func TestProcessBatch_mixed_returns4(t *testing.T) {
+func TestProcessBatch_mixed_returns1(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 
@@ -121,8 +121,8 @@ func TestProcessBatch_mixed_returns4(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 4 {
-		t.Errorf("exit code = %d, want 4 (partial success)", code)
+	if code != 1 {
+		t.Errorf("exit code = %d, want 1 (partial success)", code)
 	}
 	if stdout == "" {
 		t.Errorf("stdout empty, want successful result on stdout")
@@ -177,17 +177,17 @@ func TestProcessBatch_failEarly_stopsOnFirstError(t *testing.T) {
 
 	readStdout()
 
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1", code)
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65", code)
 	}
 	if processedLines != 1 {
 		t.Errorf("processed %d lines, want 1 (failEarly should stop)", processedLines)
 	}
 }
 
-// --- failEarly with InvalidSystemError → exit 2 ---
+// --- failEarly with InvalidSystemError → exit 78 ---
 
-func TestProcessBatch_failEarly_invalidSystem_returns2(t *testing.T) {
+func TestProcessBatch_failEarly_invalidSystem_returns78(t *testing.T) {
 	stdoutW, _ := pipeCapture(t)
 	stderrW, _ := pipeCapture(t)
 
@@ -196,8 +196,8 @@ func TestProcessBatch_failEarly_invalidSystem_returns2(t *testing.T) {
 
 	code := processBatch(scanner, sysError, formatter, stdoutW, stderrW, true)
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 for InvalidSystemError", code)
+	if code != 78 {
+		t.Errorf("exit code = %d, want 78 for InvalidSystemError", code)
 	}
 }
 

@@ -9,9 +9,9 @@ three implementations:
 
 | Backend            | File                    | Constructor                         |
 | ------------------ | ----------------------- | ----------------------------------- |
-| In-memory          | `src/wordlist.go`       | `ParseWordList(io.Reader)`          |
-| SQLite             | `src/backend_sqlite.go` | `OpenSQLiteWordSource(path)`        |
-| Pre-computed index | `src/backend_index.go`  | `NewIndexWordSource(io.ReadSeeker)` |
+| In-memory          | `wordlist.go`       | `ParseWordList(io.Reader)`          |
+| SQLite             | `backend_sqlite.go` | `OpenSQLiteWordSource(path)`        |
+| Pre-computed index | `backend_index.go`  | `NewIndexWordSource(io.ReadSeeker)` |
 
 Backend selection is handled in `internal/cli/run.go` via `openWordSource`,
 which detects the backend by file extension, companion `.idx` file, or

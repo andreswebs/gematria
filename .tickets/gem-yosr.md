@@ -1,6 +1,6 @@
 ---
 id: gem-yosr
-status: open
+status: closed
 deps: [gem-kj4m]
 links: [gem-kj4m]
 created: 2026-07-22T17:31:30Z
@@ -155,3 +155,7 @@ all assertions are inline.
 **2026-07-24T20:37:45Z**
 
 Depends on and relates to gem-kj4m (Migrate Go module from src/ to repo root). After that migration lands, the Go module and all library packages live at the REPOSITORY ROOT, not under src/. Every 'src/...' path in this ticket must be re-checked and rewritten with the src/ prefix dropped: the production sites become internal/cli/run.go, internal/cli/config.go, internal/cli/batch.go; the new files become internal/cli/exitcodes.go and internal/cli/exitcodes_test.go; the test files become internal/cli/*_test.go; and the ADR path docs/adr/0001-exit-code-taxonomy.md is unchanged (docs/ does not move). The cited line numbers may also shift. Sequence the exit-code work after gem-kj4m to avoid rebasing path changes.
+
+**2026-07-24T22:30:43Z**
+
+Migrated exit codes from 0/1/2/3/4 to the fleet taxonomy (ADR 0001): 0 success, 1 partial batch, 64 usage, 65 data, 74 I/O, 78 config. Added internal/cli/exitcodes.go with the ExitCodes registry plus typed *usageError/*configError wrappers so parseConfig errors are classified by provenance (flag=64 vs env=78), not by string-matching. exitCodeForComputeError/exitCodeForBatchError now map invalid system/scheme->78 (only reachable from lazily-validated env vars) and other input errors->65. runIndex/runFind I/O->74, malformed content->65, missing --find input->64. Conformance test exitcodes_test.go drives Run through every declared code and asserts each observed code is in ExitCodes. All existing test assertions updated (many test funcs renamed, e.g. _exit2 -> _exit64). Docs updated: README, AGENTS.md, docs/specs/{cli-design,transliteration,gematria-index,code-architecture}.md, docs/manual-qa.md, docs/learnings.md. requirements.md uses only 'non-zero' language, unchanged. make build passes; verified all 8 codes against a real binary. BREAKING CHANGE for v0.x release notes: exit codes renumbered per ADR 0001.

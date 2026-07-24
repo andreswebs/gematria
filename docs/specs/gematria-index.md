@@ -50,7 +50,7 @@ word list. Same resolution chain as `--find`: flag > env var > error.
 
 ### Flag Conflicts
 
-These combinations are rejected at parse time with exit code 2:
+These combinations are rejected at parse time with exit code 64 (usage error):
 
 | Combination                       | Error message                                         |
 | --------------------------------- | ----------------------------------------------------- |
@@ -210,7 +210,7 @@ Precedence: explicit flag > env var > built-in default.
 
 ### Step 1: Migrate index flags to Config
 
-**Files**: `src/internal/cli/config.go`, `src/internal/cli/config_test.go`
+**Files**: `internal/cli/config.go`, `internal/cli/config_test.go`
 
 Add to `Config`:
 ```
@@ -227,7 +227,7 @@ fs.StringVar(&indexFormat, "index-format", "sqlite", "index format: sqlite|index
 ```
 
 Add validation:
-- `--index-format` must be `sqlite` or `index` (exit 2 on invalid).
+- `--index-format` must be `sqlite` or `index` (exit 64 on invalid).
 - Flag conflict checks (5 rejections from the table above).
 - `--index` without `--wordlist` (and no `GEMATRIA_WORDLIST`): reject.
 
@@ -235,7 +235,7 @@ Remove the old `runIndex` pflag set entirely.
 
 ### Step 2: Wire index mode in Run()
 
-**File**: `src/internal/cli/run.go`
+**File**: `internal/cli/run.go`
 
 - Remove `args[0] == "index"` subcommand dispatch at the top of `Run()`.
 - Remove the old `runIndex` function and `indexHelpText`.
@@ -254,7 +254,7 @@ Update `helpText` to add the "Indexing:" section.
 
 ### Step 3: Migrate and add tests
 
-**Files**: `src/internal/cli/run_index_test.go`, `src/internal/cli/config_test.go`
+**Files**: `internal/cli/run_index_test.go`, `internal/cli/config_test.go`
 
 - Rewrite all `run_index_test.go` tests to use `--index` flag syntax.
 - Add conflict-rejection tests for all 5 combinations.

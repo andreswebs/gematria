@@ -158,9 +158,9 @@ func TestRun_find_sqliteBackend_closerCalled(t *testing.T) {
 	}
 }
 
-// --- --wordlist-format invalid value → exit 2 ---
+// --- --wordlist-format invalid value → exit 64 ---
 
-func TestRun_find_wordlistFormatInvalid_exit2(t *testing.T) {
+func TestRun_find_wordlistFormatInvalid_exit64(t *testing.T) {
 	path := writeTempWordList(t, "שלום\n")
 
 	stdoutW, readStdout := pipeCapture(t)
@@ -172,8 +172,8 @@ func TestRun_find_wordlistFormatInvalid_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 for invalid --wordlist-format", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 for invalid --wordlist-format", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on config error", stdout)

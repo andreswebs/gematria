@@ -423,13 +423,14 @@ The CLI renders `UnknownWordError` in plain text or JSON depending on
 }
 ```
 
-Exit code: `1` (input error), same as `UnknownNameError`.
+Exit code: `65` (data error), same as `UnknownNameError`.
 
 ### 5.3 Invalid Scheme Value
 
-`--scheme bogus` is rejected at flag-parse time with exit code `2` and a
-plain-text message listing valid schemes — same pattern as invalid `--mispar`
-or `--output`.
+`--scheme bogus` is rejected at flag-parse time with exit code `64` (usage
+error) and a plain-text message listing valid schemes — same pattern as
+invalid `--mispar` or `--output`. An invalid `GEMATRIA_SCHEME` env value,
+validated lazily under `-t`, exits `78` (configuration error).
 
 `GEMATRIA_SCHEME=bogus` is validated lazily — only when `--transliterate` is
 active. Same pattern as `GEMATRIA_LIMIT` (validated only when `--find` is
@@ -487,9 +488,9 @@ results.
 ### 6.3 Scheme Data
 
 Scheme mapping tables live as Go map literals in separate files:
-- `src/transliteration_academic.go` — academic scheme tables
-- `src/transliteration_israeli.go` — israeli scheme tables
-- `src/transliteration.go` — shared types, Transliterate, ComputeTransliterated, ComputeFromLetters
+- `transliteration_academic.go` — academic scheme tables
+- `transliteration_israeli.go` — israeli scheme tables
+- `transliteration.go` — shared types, Transliterate, ComputeTransliterated, ComputeFromLetters
 
 ### 6.4 CLI Integration
 

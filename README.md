@@ -250,7 +250,7 @@ printf '‏שלום‎\n‏אמת‎\n‏אור‎\n' | gematria --output value
 
 Processing **continues on error** by default — invalid lines produce errors
 on stderr (with line numbers); valid lines produce results on stdout. The
-exit code is `4` for partial success, `1` if all lines fail.
+exit code is `1` for partial success, `65` if all lines fail.
 
 To stop on the first error:
 
@@ -314,13 +314,17 @@ operations.
 
 ## Exit Codes
 
+Exit codes follow the fleet taxonomy in
+[docs/adr/0001-exit-code-taxonomy.md](docs/adr/0001-exit-code-taxonomy.md).
+
 | Code | Meaning                                                                                |
 | ---- | -------------------------------------------------------------------------------------- |
 | 0    | Success                                                                                |
-| 1    | Input error (invalid character, unknown name, untranslatable word)                     |
-| 2    | CLI misuse (invalid flag value, invalid env var, or missing `--wordlist` for `--find`) |
-| 3    | File error (word list not found or unreadable)                                         |
-| 4    | Partial success (stdin batch: some lines succeeded, some failed)                       |
+| 1    | Partial batch success (stdin batch: some lines succeeded, some failed)                 |
+| 64   | Usage error (invalid flag value, mutually exclusive flags, or missing `--wordlist` for `--find`) |
+| 65   | Data error (invalid character, unknown name, untranslatable word, malformed word list, or all batch lines failed) |
+| 74   | I/O error (word list or index file/backend not found, unreadable, or unwritable)       |
+| 78   | Configuration error (invalid environment variable value)                               |
 
 Stdout is always empty on error. Errors go to stderr; with `--output json`,
 they are emitted as JSON on stderr too.

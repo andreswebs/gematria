@@ -76,6 +76,18 @@ Examples:
   gematria --find 376                           Reverse lookup (uses default index)
   gematria --find 376 --wordlist w.txt          Reverse lookup with explicit word list`
 
+// exitCodeForConfigError maps a parseConfig error to its exit code.
+// Flag-level misuse (*usageError, and raw pflag parse errors) → 64;
+// invalid environment-variable values (*configError) → 78.
+func exitCodeForConfigError(err error) int {
+	var ce *configError
+	if errors.As(err, &ce) {
+		return exitConfigErr
+	}
+	// *usageError and any residual pflag surface error are usage errors.
+	return exitUsage
+}
+
 // runIndex builds a pre-computed index from the word list specified in cfg.
 // It reads cfg.Wordlist, computes gematria values for all four systems,
 // and writes a pre-computed index in the requested format.
@@ -87,28 +99,30 @@ func runIndex(cfg Config, stdout *os.File, stderr *os.File, getenv func(string) 
 		var err error
 		outputPath, err = resolveIndexPath(cfg.IndexFormat, getenv)
 		if err != nil {
+			// env/XDG resolution failure is a configuration error.
 			_, _ = fmt.Fprintf(stderr, "Error: %s\n", err.Error())
-			return 2
+			return exitConfigErr
 		}
 	}
 
 	// Auto-create the parent directory of the output path (idempotent).
 	if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
 		_, _ = fmt.Fprintf(stderr, "Error: cannot create directory %q: %v\n", filepath.Dir(outputPath), err)
-		return 3
+		return exitIOErr
 	}
 
 	// Open and parse the word list.
 	f, err := os.Open(cfg.Wordlist)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "Error: cannot open word list %q: %v\n", cfg.Wordlist, err)
-		return 3
+		return exitIOErr
 	}
 	words, err := gematria.ParseWordListSlice(f)
 	_ = f.Close()
 	if err != nil {
+		// Malformed word-list content is a data error, distinct from the open failure above.
 		_, _ = fmt.Fprintf(stderr, "Error: cannot read word list %q: %v\n", cfg.Wordlist, err)
-		return 3
+		return exitDataErr
 	}
 
 	// Write output in the requested format.
@@ -118,7 +132,7 @@ func runIndex(cfg Config, stdout *os.File, stderr *os.File, getenv func(string) 
 		count, err = gematria.WriteIndexSQLite(outputPath, words)
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "Error: cannot write index %q: %v\n", outputPath, err)
-			return 3
+			return exitIOErr
 		}
 	case "index":
 		// Merge with existing index file if present.
@@ -127,7 +141,7 @@ func runIndex(cfg Config, stdout *os.File, stderr *os.File, getenv func(string) 
 			_ = existing.Close()
 			if rerr != nil {
 				_, _ = fmt.Fprintf(stderr, "Error: cannot read existing index %q: %v\n", outputPath, rerr)
-				return 3
+				return exitIOErr
 			}
 			words = append(old, words...)
 		}
@@ -135,13 +149,13 @@ func runIndex(cfg Config, stdout *os.File, stderr *os.File, getenv func(string) 
 		out, ferr := os.Create(outputPath)
 		if ferr != nil {
 			_, _ = fmt.Fprintf(stderr, "Error: cannot create output file %q: %v\n", outputPath, ferr)
-			return 3
+			return exitIOErr
 		}
 		count, err = gematria.WriteIndexFile(out, words)
 		_ = out.Close()
 		if err != nil {
 			_, _ = fmt.Fprintf(stderr, "Error: cannot write index %q: %v\n", outputPath, err)
-			return 3
+			return exitIOErr
 		}
 	}
 
@@ -154,7 +168,7 @@ func Run(args []string, stdin *os.File, stdout *os.File, stderr *os.File, getenv
 	cfg, err := parseConfig(args, getenv)
 	if err != nil {
 		_, _ = fmt.Fprintf(stderr, "Error: %s\n", err.Error())
-		return 2
+		return exitCodeForConfigError(err)
 	}
 
 	if cfg.Help {
@@ -233,15 +247,18 @@ func computeArgs(cfg Config, formatter Formatter, stdout, stderr *os.File) int {
 }
 
 // exitCodeForComputeError maps a compute error to its exit code.
-// Misuse-class errors (invalid system, invalid scheme) → 2; all other input
-// errors (invalid char, unknown name, unknown word) → 1.
+// An invalid system/scheme reaching compute time can only originate from a
+// lazily validated env var (GEMATRIA_MISPAR/GEMATRIA_SCHEME) — flag values are
+// validated eagerly at parse time (config.go) — so it is a configuration error
+// (78). All other input errors (invalid char, unknown name, unknown word) are
+// data errors (65).
 func exitCodeForComputeError(err error) int {
 	var ise *gematria.InvalidSystemError
 	var iscse *gematria.InvalidSchemeError
 	if errors.As(err, &ise) || errors.As(err, &iscse) {
-		return 2
+		return exitConfigErr
 	}
-	return 1
+	return exitDataErr
 }
 
 // openWordSource selects and constructs the appropriate WordSource backend for path.
@@ -345,9 +362,10 @@ func runFind(cfg Config, formatter Formatter, stdout, stderr *os.File, getenv fu
 		if found {
 			cfg.Wordlist = discovered
 		} else {
+			// Missing required input for --find is a usage error.
 			_, _ = fmt.Fprint(stderr, formatter.FormatError(
 				errors.New("no word list specified and no default index found; run 'gematria --index --wordlist <path>' to create one, or pass --wordlist explicitly")))
-			return 2
+			return exitUsage
 		}
 	}
 
@@ -355,7 +373,7 @@ func runFind(cfg Config, formatter Formatter, stdout, stderr *os.File, getenv fu
 	if err != nil {
 		_, _ = fmt.Fprint(stderr, formatter.FormatError(
 			fmt.Errorf("cannot open word list %q: %w", cfg.Wordlist, err)))
-		return 3
+		return exitIOErr
 	}
 	if closer != nil {
 		defer func() { _ = closer.Close() }()
@@ -364,7 +382,14 @@ func runFind(cfg Config, formatter Formatter, stdout, stderr *os.File, getenv fu
 	words, hasMore, err := gematria.FindByValue(cfg.FindValue, source, cfg.Mispar, cfg.Limit)
 	if err != nil {
 		_, _ = fmt.Fprint(stderr, formatter.FormatError(err))
-		return 1
+		// An invalid system/scheme here comes from a lazily validated env var
+		// (78); anything else is a backend read failure (74).
+		var ise *gematria.InvalidSystemError
+		var iscse *gematria.InvalidSchemeError
+		if errors.As(err, &ise) || errors.As(err, &iscse) {
+			return exitConfigErr
+		}
+		return exitIOErr
 	}
 
 	_, _ = fmt.Fprint(stdout, formatter.FormatLookup(words, hasMore))

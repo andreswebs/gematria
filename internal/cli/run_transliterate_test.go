@@ -178,8 +178,8 @@ func TestRun_noTransliterate_shalomStillUnknown(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1 (UnknownNameError without -t)", code)
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65 (UnknownNameError without -t)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -229,9 +229,9 @@ func TestRun_transliterate_stdinBatch(t *testing.T) {
 	}
 }
 
-// --- Invalid --scheme value → exit 2, valid-list error ---
+// --- Invalid --scheme value → exit 64, valid-list error ---
 
-func TestRun_transliterate_invalidScheme_exit2(t *testing.T) {
+func TestRun_transliterate_invalidScheme_exit64(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -241,8 +241,8 @@ func TestRun_transliterate_invalidScheme_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty", stdout)
@@ -292,17 +292,17 @@ func TestRun_transliterate_lazyEnvValidationWithFlag(t *testing.T) {
 
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (env validated with -t)", code)
+	if code != 78 {
+		t.Errorf("exit code = %d, want 78 (env validated with -t)", code)
 	}
 	if !strings.Contains(stderr, "GEMATRIA_SCHEME") {
 		t.Errorf("stderr = %q, want it to mention GEMATRIA_SCHEME", stderr)
 	}
 }
 
-// --- Unmappable input → exit 1, UnknownWordError on stderr ---
+// --- Unmappable input → exit 65, UnknownWordError on stderr ---
 
-func TestRun_transliterate_unknownWord_exit1(t *testing.T) {
+func TestRun_transliterate_unknownWord_exit65(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -313,8 +313,8 @@ func TestRun_transliterate_unknownWord_exit1(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1 (UnknownWordError)", code)
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65 (UnknownWordError)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -336,8 +336,8 @@ func TestRun_transliterate_unknownWordJSON_includesScheme(t *testing.T) {
 
 	stderr := readStderr()
 
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1", code)
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65", code)
 	}
 	if !strings.Contains(stderr, `"scheme":"israeli"`) {
 		t.Errorf("stderr = %q, want JSON error with scheme:israeli", stderr)

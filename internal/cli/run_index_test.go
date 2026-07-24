@@ -118,9 +118,9 @@ func TestRun_index_dispatch_sqlite_tracer(t *testing.T) {
 	}
 }
 
-// --- Missing --wordlist → exit 2 ---
+// --- Missing --wordlist → exit 64 ---
 
-func TestRun_index_missingWordlist_exit2(t *testing.T) {
+func TestRun_index_missingWordlist_exit64(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -130,8 +130,8 @@ func TestRun_index_missingWordlist_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (missing --wordlist)", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 (missing --wordlist)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -141,9 +141,9 @@ func TestRun_index_missingWordlist_exit2(t *testing.T) {
 	}
 }
 
-// --- Non-existent wordlist file → exit 3 ---
+// --- Non-existent wordlist file → exit 74 ---
 
-func TestRun_index_wordlistNotFound_exit3(t *testing.T) {
+func TestRun_index_wordlistNotFound_exit74(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -153,8 +153,8 @@ func TestRun_index_wordlistNotFound_exit3(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 3 {
-		t.Errorf("exit code = %d, want 3 (file not found)", code)
+	if code != 74 {
+		t.Errorf("exit code = %d, want 74 (file not found)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on file error", stdout)
@@ -164,9 +164,9 @@ func TestRun_index_wordlistNotFound_exit3(t *testing.T) {
 	}
 }
 
-// --- Invalid --index-format → exit 2 ---
+// --- Invalid --index-format → exit 64 ---
 
-func TestRun_index_invalidFormat_exit2(t *testing.T) {
+func TestRun_index_invalidFormat_exit64(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
 
 	stdoutW, readStdout := pipeCapture(t)
@@ -178,8 +178,8 @@ func TestRun_index_invalidFormat_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (invalid --index-format)", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 (invalid --index-format)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -462,9 +462,9 @@ func TestRun_index_defaultOutput_autoCreatesDirectory(t *testing.T) {
 	}
 }
 
-// --- Invalid GEMATRIA_INDEX_NAME (path separator) → exit 2 ---
+// --- Invalid GEMATRIA_INDEX_NAME (path separator) → exit 78 ---
 
-func TestRun_index_invalidIndexName_exit2(t *testing.T) {
+func TestRun_index_invalidIndexName_exit78(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
 
 	stdoutW, readStdout := pipeCapture(t)
@@ -480,8 +480,8 @@ func TestRun_index_invalidIndexName_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (invalid GEMATRIA_INDEX_NAME); stderr = %q", code, stderr)
+	if code != 78 {
+		t.Errorf("exit code = %d, want 78 (invalid GEMATRIA_INDEX_NAME); stderr = %q", code, stderr)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -528,9 +528,9 @@ func TestRun_index_outputFlagBypassesEnvVars(t *testing.T) {
 	}
 }
 
-// --- Bad --index-output path → exit 3 ---
+// --- Bad --index-output path → exit 74 ---
 
-func TestRun_index_badOutputPath_exit3(t *testing.T) {
+func TestRun_index_badOutputPath_exit74(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
 
 	stdoutW, readStdout := pipeCapture(t)
@@ -543,8 +543,8 @@ func TestRun_index_badOutputPath_exit3(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 3 {
-		t.Errorf("exit code = %d, want 3 (bad output path); stderr = %q", code, stderr)
+	if code != 74 {
+		t.Errorf("exit code = %d, want 74 (bad output path); stderr = %q", code, stderr)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on file error", stdout)
@@ -555,7 +555,7 @@ func TestRun_index_badOutputPath_exit3(t *testing.T) {
 	}
 }
 
-// --- Conflict: --index and --find are mutually exclusive → exit 2 ---
+// --- Conflict: --index and --find are mutually exclusive → exit 64 ---
 
 func TestRun_index_conflict_findMutuallyExclusive(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
@@ -569,8 +569,8 @@ func TestRun_index_conflict_findMutuallyExclusive(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (--index and --find mutually exclusive)", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 (--index and --find mutually exclusive)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -580,7 +580,7 @@ func TestRun_index_conflict_findMutuallyExclusive(t *testing.T) {
 	}
 }
 
-// --- Conflict: --index and --transliterate are mutually exclusive → exit 2 ---
+// --- Conflict: --index and --transliterate are mutually exclusive → exit 64 ---
 
 func TestRun_index_conflict_transliterateMutuallyExclusive(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
@@ -594,8 +594,8 @@ func TestRun_index_conflict_transliterateMutuallyExclusive(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (--index and -t mutually exclusive)", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 (--index and -t mutually exclusive)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -605,7 +605,7 @@ func TestRun_index_conflict_transliterateMutuallyExclusive(t *testing.T) {
 	}
 }
 
-// --- Conflict: --index-output without --index → exit 2 ---
+// --- Conflict: --index-output without --index → exit 64 ---
 
 func TestRun_index_conflict_indexOutputWithoutIndex(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
@@ -617,8 +617,8 @@ func TestRun_index_conflict_indexOutputWithoutIndex(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (--index-output requires --index)", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 (--index-output requires --index)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -628,7 +628,7 @@ func TestRun_index_conflict_indexOutputWithoutIndex(t *testing.T) {
 	}
 }
 
-// --- Conflict: --index-format without --index → exit 2 ---
+// --- Conflict: --index-format without --index → exit 64 ---
 
 func TestRun_index_conflict_indexFormatWithoutIndex(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
@@ -640,8 +640,8 @@ func TestRun_index_conflict_indexFormatWithoutIndex(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (--index-format requires --index)", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 (--index-format requires --index)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -651,7 +651,7 @@ func TestRun_index_conflict_indexFormatWithoutIndex(t *testing.T) {
 	}
 }
 
-// --- Conflict: --index with positional argument → exit 2 ---
+// --- Conflict: --index with positional argument → exit 64 ---
 
 func TestRun_index_conflict_positionalArgs(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
@@ -665,8 +665,8 @@ func TestRun_index_conflict_positionalArgs(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 (--index does not accept positional args)", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 (--index does not accept positional args)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on error", stdout)
@@ -711,7 +711,7 @@ func TestRun_index_envWordlist_resolution(t *testing.T) {
 	}
 }
 
-// --- Old subcommand syntax regression: "index" as Latin input → exit 1, NOT 0 ---
+// --- Old subcommand syntax regression: "index" as Latin input → exit 65, NOT 0 ---
 
 func TestRun_index_oldSubcommandSyntax_regression(t *testing.T) {
 	wordlistPath := writeTempWordListIndex(t, "שלום\n")
@@ -726,8 +726,8 @@ func TestRun_index_oldSubcommandSyntax_regression(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	// "index" is not a valid letter name → exit 1 (input error), not 0.
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1 (old subcommand treated as unknown input); stderr = %q stdout = %q", code, stderr, stdout)
+	// "index" is not a valid letter name → exit 65 (input error), not 0.
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65 (old subcommand treated as unknown input); stderr = %q stdout = %q", code, stderr, stdout)
 	}
 }

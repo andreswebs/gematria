@@ -83,7 +83,9 @@ func registerFlags(fs *pflag.FlagSet, v *cliFlags) {
 
 // parseConfig resolves flags and environment variables into a Config.
 // Precedence: explicit flag > environment variable > built-in default.
-// Returns a non-nil error (with exit-code-2 semantics) for invalid values.
+// Invalid values return a typed error: *usageError for flag-level misuse
+// (exit 64) and *configError for a bad environment-variable value (exit 78).
+// Run classifies these by type, not by matching the message.
 func parseConfig(args []string, getenv func(string) string) (Config, error) {
 	fs := pflag.NewFlagSet("gematria", pflag.ContinueOnError)
 	// Suppress pflag's own error/usage output; Run() handles all user-facing messages.
@@ -93,21 +95,28 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 	registerFlags(fs, &v)
 
 	if err := fs.Parse(args); err != nil {
-		return Config{}, err
+		// pflag surface errors (unknown flag, bad numeric value) are usage errors.
+		return Config{}, &usageError{err}
 	}
 
 	findSet := fs.Changed("find")
 
 	// Resolve --output: flag > GEMATRIA_OUTPUT > "line"
 	output := v.output
+	outputFromFlag := fs.Changed("output")
 	if output == "" {
 		output = getenv("GEMATRIA_OUTPUT")
 	}
 	if output == "" {
 		output = "line"
 	}
-	if output != "" && !contains(validOutputs, output) {
-		return Config{}, fmt.Errorf("invalid value %q for --output\nvalid values: %s", output, strings.Join(validOutputs, ", "))
+	if !contains(validOutputs, output) {
+		// Classify by provenance: an invalid flag value is usage (64), an
+		// invalid GEMATRIA_OUTPUT value is configuration (78).
+		if outputFromFlag {
+			return Config{}, &usageError{fmt.Errorf("invalid value %q for --output\nvalid values: %s", output, strings.Join(validOutputs, ", "))}
+		}
+		return Config{}, &configError{fmt.Errorf("invalid value %q for GEMATRIA_OUTPUT\nvalid values: %s", output, strings.Join(validOutputs, ", "))}
 	}
 
 	// Resolve --mispar: flag > GEMATRIA_MISPAR > "hechrachi"
@@ -116,7 +125,7 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 	// unrelated operations such as reverse lookup).
 	mispar := v.mispar
 	if fs.Changed("mispar") && !contains(validSystems, mispar) {
-		return Config{}, fmt.Errorf("invalid value %q for --mispar\nvalid values: %s", mispar, strings.Join(validSystems, ", "))
+		return Config{}, &usageError{fmt.Errorf("invalid value %q for --mispar\nvalid values: %s", mispar, strings.Join(validSystems, ", "))}
 	}
 	if mispar == "" {
 		mispar = getenv("GEMATRIA_MISPAR")
@@ -133,32 +142,32 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 
 	// Validate --wordlist-format if explicitly provided.
 	if v.wordlistFormat != "" && !contains(validWordlistFormats, v.wordlistFormat) {
-		return Config{}, fmt.Errorf("invalid value %q for --wordlist-format\nvalid values: %s", v.wordlistFormat, strings.Join(validWordlistFormats, ", "))
+		return Config{}, &usageError{fmt.Errorf("invalid value %q for --wordlist-format\nvalid values: %s", v.wordlistFormat, strings.Join(validWordlistFormats, ", "))}
 	}
 
 	// Validate --index-format when explicitly set.
 	if fs.Changed("index-format") && !contains(validIndexFormats, v.indexFormat) {
-		return Config{}, fmt.Errorf("invalid value %q for --index-format\nvalid values: %s", v.indexFormat, strings.Join(validIndexFormats, ", "))
+		return Config{}, &usageError{fmt.Errorf("invalid value %q for --index-format\nvalid values: %s", v.indexFormat, strings.Join(validIndexFormats, ", "))}
 	}
 
 	// --index conflict checks (all require wordlist to already be resolved above).
 	if v.index && findSet {
-		return Config{}, fmt.Errorf("--index and --find are mutually exclusive")
+		return Config{}, &usageError{fmt.Errorf("--index and --find are mutually exclusive")}
 	}
 	if v.index && v.transliterate {
-		return Config{}, fmt.Errorf("--index and --transliterate are mutually exclusive")
+		return Config{}, &usageError{fmt.Errorf("--index and --transliterate are mutually exclusive")}
 	}
 	if fs.Changed("index-output") && !v.index {
-		return Config{}, fmt.Errorf("--index-output requires --index")
+		return Config{}, &usageError{fmt.Errorf("--index-output requires --index")}
 	}
 	if fs.Changed("index-format") && !v.index {
-		return Config{}, fmt.Errorf("--index-format requires --index")
+		return Config{}, &usageError{fmt.Errorf("--index-format requires --index")}
 	}
 	if v.index && len(fs.Args()) > 0 {
-		return Config{}, fmt.Errorf("--index does not accept positional arguments")
+		return Config{}, &usageError{fmt.Errorf("--index does not accept positional arguments")}
 	}
 	if v.index && wordlist == "" {
-		return Config{}, fmt.Errorf("--index requires --wordlist or GEMATRIA_WORDLIST")
+		return Config{}, &usageError{fmt.Errorf("--index requires --wordlist or GEMATRIA_WORDLIST")}
 	}
 
 	// Resolve --limit: flag > GEMATRIA_LIMIT > DefaultLookupLimit
@@ -168,7 +177,7 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 		if envLimit := getenv("GEMATRIA_LIMIT"); envLimit != "" {
 			parsed, err := strconv.Atoi(envLimit)
 			if err != nil || parsed < 1 {
-				return Config{}, fmt.Errorf("GEMATRIA_LIMIT must be a positive integer, got: %q", envLimit)
+				return Config{}, &configError{fmt.Errorf("GEMATRIA_LIMIT must be a positive integer, got: %q", envLimit)}
 			}
 			limit = parsed
 		}
@@ -181,7 +190,7 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 	// Eager validation when the flag was explicitly set.
 	scheme := v.scheme
 	if fs.Changed("scheme") && !contains(validSchemes, scheme) {
-		return Config{}, fmt.Errorf("invalid value %q for --scheme\nvalid values: %s", scheme, strings.Join(validSchemes, ", "))
+		return Config{}, &usageError{fmt.Errorf("invalid value %q for --scheme\nvalid values: %s", scheme, strings.Join(validSchemes, ", "))}
 	}
 	// Fall back to env var when flag not provided.
 	if scheme == "" {
@@ -189,7 +198,7 @@ func parseConfig(args []string, getenv func(string) string) (Config, error) {
 	}
 	// Lazy validation: only check env var value when -t is active.
 	if v.transliterate && scheme != "" && !contains(validSchemes, scheme) {
-		return Config{}, fmt.Errorf("invalid value %q for GEMATRIA_SCHEME\nvalid values: %s", scheme, strings.Join(validSchemes, ", "))
+		return Config{}, &configError{fmt.Errorf("invalid value %q for GEMATRIA_SCHEME\nvalid values: %s", scheme, strings.Join(validSchemes, ", "))}
 	}
 	// Apply default only when transliteration is active.
 	if v.transliterate && scheme == "" {

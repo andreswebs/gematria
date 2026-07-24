@@ -32,33 +32,32 @@ independently of the command-line interface.
 Three packages total:
 
 ```
-src/
-  go.mod                       # module github.com/andreswebs/gematria
-  gematria.go                  # Root package public API
-  letters.go                   # Letter dictionary (map literals)
-  systems.go                   # Gematria system lookup tables
-  errors.go                    # Typed error definitions
-  result.go                    # Result and LetterResult types
-  wordlist.go                  # WordSource interface, ParseWordList, Word type
-  backend_sqlite.go            # SQLite WordSource backend
-  backend_index.go             # Pre-computed index file WordSource backend
-  transliteration.go           # Transliterate() function, Scheme type
-  transliteration_academic.go  # Academic transliteration scheme table
-  transliteration_israeli.go   # Israeli transliteration scheme table
-  cmd/
-    gematria/
-      main.go                  # Entrypoint: cli.Run() + os.Exit()
-  internal/
-    cli/
-      run.go                   # Run() entry point, orchestration, --index mode
-      config.go                # Config struct, flag parsing, env var reading
-      output.go                # Formatter interface definition
-      line.go                  # LineFormatter
-      value.go                 # ValueFormatter
-      card.go                  # CardFormatter
-      json.go                  # JSONFormatter
-      color.go                 # ANSI color, NO_COLOR, TTY detection
-      batch.go                 # Stdin batching, --fail-early, partial success
+go.mod                       # module github.com/andreswebs/gematria
+gematria.go                  # Root package public API
+letters.go                   # Letter dictionary (map literals)
+systems.go                   # Gematria system lookup tables
+errors.go                    # Typed error definitions
+result.go                    # Result and LetterResult types
+wordlist.go                  # WordSource interface, ParseWordList, Word type
+backend_sqlite.go            # SQLite WordSource backend
+backend_index.go             # Pre-computed index file WordSource backend
+transliteration.go           # Transliterate() function, Scheme type
+transliteration_academic.go  # Academic transliteration scheme table
+transliteration_israeli.go   # Israeli transliteration scheme table
+cmd/
+  gematria/
+    main.go                  # Entrypoint: cli.Run() + os.Exit()
+internal/
+  cli/
+    run.go                   # Run() entry point, orchestration, --index mode
+    config.go                # Config struct, flag parsing, env var reading
+    output.go                # Formatter interface definition
+    line.go                  # LineFormatter
+    value.go                 # ValueFormatter
+    card.go                  # CardFormatter
+    json.go                  # JSONFormatter
+    color.go                 # ANSI color, NO_COLOR, TTY detection
+    batch.go                 # Stdin batching, --fail-early, partial success
 ```
 
 File names are indicative — files may be combined or split differently during
@@ -278,10 +277,10 @@ This is why `Run()` accepts file descriptors.
 When reading multiple lines from stdin:
 
 - **Default behavior**: process all lines. Valid lines produce results on
-  stdout, invalid lines produce per-line errors on stderr. Exit code 4 on
-  partial success.
+  stdout, invalid lines produce per-line errors on stderr. Exit code 1 on
+  partial success (65 when all lines fail).
 - **`--fail-early`**: stop on first error, exit immediately with the
-  appropriate error code (1, 2, or 3).
+  appropriate error code (65 for a data error, 78 for an invalid env value).
 
 ### 4.6 No-Args Behavior
 

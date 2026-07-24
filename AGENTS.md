@@ -245,13 +245,17 @@ because they occur before the formatter is initialized.
 
 ## Exit Codes
 
+Exit codes follow the fleet taxonomy in
+[docs/adr/0001-exit-code-taxonomy.md](docs/adr/0001-exit-code-taxonomy.md).
+
 | Code | Meaning                                                                      |
 | ---- | ---------------------------------------------------------------------------- |
 | 0    | Success                                                                      |
-| 1    | Input error — invalid character or unknown transliteration name              |
-| 2    | CLI misuse — invalid flag value, invalid env var, or missing `--wordlist` when using `--find` |
-| 3    | File error — word list not found or unreadable                               |
-| 4    | Partial success — stdin batch: some lines succeeded, some failed             |
+| 1    | Partial batch success — stdin batch: some lines succeeded, some failed       |
+| 64   | Usage error — invalid flag value, mutually exclusive flags, or missing `--wordlist` when using `--find` |
+| 65   | Data error — invalid character, unknown transliteration name/word, malformed word list, or all batch lines failed |
+| 74   | I/O error — word list or index file/backend not found, unreadable, or unwritable |
+| 78   | Configuration error — invalid environment variable value (e.g. `GEMATRIA_MISPAR`, `GEMATRIA_SCHEME`, `GEMATRIA_LIMIT`, `GEMATRIA_OUTPUT`) |
 
 Agent branching example (shell):
 
@@ -259,11 +263,12 @@ Agent branching example (shell):
 gematria --output json "${INPUT}"
 CODE=$?
 case $CODE in
-  0) echo "success" ;;
-  1) echo "bad input — check suggestions field in stderr JSON" ;;
-  2) echo "misuse — check flag/env values" ;;
-  3) echo "file error — check word list path" ;;
-  4) echo "partial success — some lines failed" ;;
+  0)  echo "success" ;;
+  1)  echo "partial batch success — some lines failed" ;;
+  64) echo "usage error — check flag values" ;;
+  65) echo "data error — check suggestions field in stderr JSON" ;;
+  74) echo "I/O error — check word list/index path" ;;
+  78) echo "config error — check environment variable values" ;;
 esac
 ```
 
@@ -279,8 +284,8 @@ printf 'שלום\nאמת\nאור\n' | gematria --output json
 ```
 
 Each line produces one JSON object on stdout (or one JSON error on stderr).
-Processing continues on error by default; exit code 4 indicates partial
-success.
+Processing continues on error by default; exit code 1 indicates partial
+success (some lines succeeded, some failed), while 65 means every line failed.
 
 Use `--fail-early` to stop on the first error:
 

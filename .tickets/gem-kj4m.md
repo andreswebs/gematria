@@ -1,8 +1,8 @@
 ---
 id: gem-kj4m
-status: open
+status: closed
 deps: []
-links: [gem-yosr]
+links: [gem-yosr, gem-3g8w]
 created: 2026-07-24T20:37:36Z
 type: task
 priority: 1
@@ -523,3 +523,7 @@ signed-SBOM step (its release path is the build.dispatch/validate.dispatch
 workflow set, not the template's release.yml). Adding one to match the fleet
 is a workflow-modernization change beyond the module-root move. Do NOT block
 this migration on it; it is tracked as its own concern.
+
+**2026-07-24T22:13:43Z**
+
+Migrated Go module from src/ to repo root. Used git mv for all 25 entries (cmd/, internal/, go.mod, go.sum, 21 loose .go files); removed empty src/. Import paths unchanged (module path already omitted src), zero .go edits. Config edits: Makefile SRC_DIR := $(CURDIR); build.dispatch.yaml & validate.dispatch.yaml go-version-file/cache-dependency-path drop src/; dependabot.yml gomod directory / . Docs swept (code-architecture.md tree re-rooted + dedented; transliteration.md, wordlist-backends.md, gematria-index.md, manual-qa.md, learnings.md drop src/ prefix). No parent go.work/AGENTS.md in this checkout, so Step 5 (fleet workspace glue) N/A here. make validate + make build pass; binary smoke-tested (-t shalom=370, שלום=376, aleph=1). Step 8 external proxy verification (go install/go get @latest) is deferred: requires owner to merge and push a resolvable tag (e.g. v0.1.1). Old tags were never proxy-resolvable so no retraction needed.

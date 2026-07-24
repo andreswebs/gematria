@@ -262,9 +262,9 @@ func TestRun_gematriaOutputFlag_overridesEnv(t *testing.T) {
 	}
 }
 
-// --- Invalid --mispar flag: exit 2, stderr lists valid values, stdout empty ---
+// --- Invalid --mispar flag: exit 64, stderr lists valid values, stdout empty ---
 
-func TestRun_invalidMispar_exit2(t *testing.T) {
+func TestRun_invalidMispar_exit64(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "")
@@ -274,8 +274,8 @@ func TestRun_invalidMispar_exit2(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 2 {
-		t.Errorf("exit code = %d, want 2 for invalid --mispar", code)
+	if code != 64 {
+		t.Errorf("exit code = %d, want 64 for invalid --mispar", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty on config error", stdout)
@@ -360,9 +360,9 @@ func TestRun_noColor_noANSICodes(t *testing.T) {
 	}
 }
 
-// --- Stdin batch: all lines invalid → exit 1 ---
+// --- Stdin batch: all lines invalid → exit 65 ---
 
-func TestRun_stdinBatch_allInvalid_exit1(t *testing.T) {
+func TestRun_stdinBatch_allInvalid_exit65(t *testing.T) {
 	stdoutW, readStdout := pipeCapture(t)
 	stderrW, readStderr := pipeCapture(t)
 	stdin := makeStdinPipe(t, "bad\nworse\n")
@@ -372,8 +372,8 @@ func TestRun_stdinBatch_allInvalid_exit1(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1 (all lines failed)", code)
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65 (all lines failed)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty when all lines fail", stdout)
@@ -396,8 +396,8 @@ func TestRun_stdinBatch_failEarly_stopsOnFirst(t *testing.T) {
 	stdout := readStdout()
 	stderr := readStderr()
 
-	if code != 1 {
-		t.Errorf("exit code = %d, want 1 (--fail-early on first error)", code)
+	if code != 65 {
+		t.Errorf("exit code = %d, want 65 (--fail-early on first error)", code)
 	}
 	if stdout != "" {
 		t.Errorf("stdout = %q, want empty (no successful lines processed before first error)", stdout)
