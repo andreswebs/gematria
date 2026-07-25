@@ -13,6 +13,7 @@ tags: [wordlist-backends, epic]
 Implement alternative WordSource backends beyond the current in-memory implementation, as described in docs/specs/wordlist-backends.md. The WordSource interface (defined in the reverse-lookup epic) accepts any conforming backend, so all new backends slot in without changing the root package API. Backend selection lives entirely in internal/cli/; the domain layer is unaffected.
 
 ## Spec References
+
 - docs/specs/wordlist-backends.md (primary — backend rationale, interface suggestions, open questions)
 - docs/specs/code-architecture.md §3.6 (WordSource interface shape and placement)
 - docs/specs/requirements.md §6–7 (reverse lookup and word list format requirements)
@@ -63,8 +64,8 @@ Exported constructor (returns interface to hide implementation):
 
 Unexported struct:
   type sqliteWordSource struct { db *sql.DB }
-  var _ WordSource = (*sqliteWordSource)(nil)
-  var _ io.Closer  = (*sqliteWordSource)(nil)
+  var _WordSource = (*sqliteWordSource)(nil)
+  var_ io.Closer  = (*sqliteWordSource)(nil)
 
 FindByValue: SQL query joining words + word_values WHERE system=? AND value=?, LIMIT limit+1. Detect hasMore from len(rows) > limit.
 
@@ -83,8 +84,8 @@ Unexported struct:
     f     io.ReadSeeker // file kept open for deferred seeks
     index map[System]map[int]indexRange
   }
-  var _ WordSource = (*indexWordSource)(nil)
-  var _ io.Closer  = (*indexWordSource)(nil)
+  var _WordSource = (*indexWordSource)(nil)
+  var_ io.Closer  = (*indexWordSource)(nil)
 
 Exported constructor:
   func OpenIndexWordSource(path string) (WordSource, error)
@@ -108,7 +109,7 @@ Exported constructor with functional options:
   func NewRemoteWordSource(baseURL string, opts ...RemoteOption) (WordSource, error)
   type RemoteOption func(*remoteWordSource)
   func WithAuthToken(token string) RemoteOption
-  func WithHTTPClient(client *http.Client) RemoteOption
+  func WithHTTPClient(client*http.Client) RemoteOption
 
 FindByValue: build URL, set Authorization header if token present, execute GET, decode JSON, return (words, hasMore, err). Non-200 → wrapped error with status code. Network failure → wrapped error.
 
@@ -121,6 +122,7 @@ No io.Closer needed (HTTP client has no cleanup). remoteWordSource does not impl
   func openWordSource(path string, getenv func(string) string) (gematria.WordSource, error)
 
 Detection order:
+
   1. http:// or https:// prefix → NewRemoteWordSource; reads GEMATRIA_WORDLIST_TOKEN for optional auth
   2. .db extension → OpenSQLiteWordSource
   3. .idx extension → OpenIndexWordSource
@@ -159,9 +161,12 @@ Remote backend tests use httptest.NewServer to avoid real network calls.
 
 SQLite and index backend tests use os.TempDir() for ephemeral files, cleaned up with t.Cleanup.
 
-
 ## Notes
 
 **2026-04-15T13:26:02Z**
 
 All child tasks (SQLite backend, index-file backend, remote backend, index subcommand, backend auto-selection, and tests) were completed in prior sessions. Epic closed as all implementations are in place and all tests pass. Key files: src/backend_sqlite.go, src/backend_index.go, src/backend_remote.go, internal/cli/run.go (openWordSource helper + index subcommand dispatch).
+
+**2026-07-25T00:00:00Z**
+
+Remote/HTTP backend removed (gem-ek4u): it was overengineered for the project's scope. Backends are now in-memory, SQLite, and pre-computed index only.

@@ -24,7 +24,7 @@ type Config struct {
 	FindSet        bool            // true when --find was explicitly provided
 	Wordlist       string          // resolved word list path (empty means none provided)
 	Limit          int             // maximum results (always >= 1 after resolution)
-	WordlistFormat string          // explicit backend override (sqlite|index|remote|memory); empty = auto-detect
+	WordlistFormat string          // explicit backend override (sqlite|index|memory); empty = auto-detect
 	Transliterate  bool            // interpret Latin input as Hebrew words (per --scheme)
 	Scheme         string          // transliteration scheme (academic|israeli); default "academic" when Transliterate=true
 	Index          bool            // build a pre-computed index from --wordlist
@@ -34,7 +34,7 @@ type Config struct {
 
 var validSystems = []string{"hechrachi", "gadol", "siduri", "atbash"}
 var validOutputs = []string{"line", "value", "card", "json"}
-var validWordlistFormats = []string{"sqlite", "index", "remote", "memory"}
+var validWordlistFormats = []string{"sqlite", "index", "memory"}
 var validSchemes = []string{"academic", "israeli"}
 var validIndexFormats = []string{"sqlite", "index"}
 
@@ -73,7 +73,7 @@ func registerFlags(fs *pflag.FlagSet, v *cliFlags) {
 	fs.IntVar(&v.findValue, "find", 0, "find words whose gematria value equals N")
 	fs.StringVar(&v.wordlist, "wordlist", "", "path to word list file (or set GEMATRIA_WORDLIST)")
 	fs.IntVarP(&v.limit, "limit", "l", 0, "maximum results to return (default 20)")
-	fs.StringVar(&v.wordlistFormat, "wordlist-format", "", "backend override: sqlite|index|remote|memory")
+	fs.StringVar(&v.wordlistFormat, "wordlist-format", "", "backend override: sqlite|index|memory")
 	fs.BoolVarP(&v.transliterate, "transliterate", "t", false, "interpret Latin input as Hebrew words (per --scheme)")
 	fs.StringVar(&v.scheme, "scheme", "", "transliteration scheme (academic, israeli)")
 	fs.BoolVar(&v.index, "index", false, "build a pre-computed index from --wordlist")

@@ -21,8 +21,7 @@ and the `index` subcommand.
 - All four output formats (`line`, `value`, `card`, `json`).
 - Input modes: positional argument, stdin (batch), Hebrew Unicode, Latin
   transliteration, mixed input.
-- Reverse lookup via `--find` across all backends (memory, index, sqlite,
-  remote).
+- Reverse lookup via `--find` across all backends (memory, index, sqlite).
 - `--index` flag for both index formats (`sqlite`, `index`).
 - Error paths and exit codes (0/1/64/65/74/78).
 - Environment variables and precedence.
@@ -316,7 +315,7 @@ P3 = fix when possible.
 
 **Steps**:
 
-1. Run `gematria --find 1 --wordlist /tmp/x --wordlist-format xml` → expect exit `64`; stderr lists `sqlite, index, remote, memory`.
+1. Run `gematria --find 1 --wordlist /tmp/x --wordlist-format xml` → expect exit `64`; stderr lists `sqlite, index, memory`.
 
 ---
 
@@ -614,22 +613,6 @@ P3 = fix when possible.
 1. Run `gematria --find 441 --wordlist "${TEST_DIR}/words.db" --wordlist-format memory` → expect exit `74` or an error (treating a SQLite file as a text file will fail parsing or return no results).
 
 **Note**: Record exact behavior — if the tool silently treats the binary file as text, that may be acceptable but worth documenting.
-
----
-
-#### TC-BACKEND-005 — Remote backend (optional, requires HTTP server)
-
-**Priority**: P2 · **Type**: Integration
-
-**Preconditions**: A test HTTP server running that serves word-list JSON (skip if not available).
-
-**Steps**:
-
-1. With a local server on `localhost:8080`, run `gematria --find 1 --wordlist http://localhost:8080/words --output json`.
-2. Verify results are returned.
-3. Test auth token: `GEMATRIA_WORDLIST_TOKEN=secret gematria --find 1 --wordlist https://example.com/words` — verify the token is sent in the Authorization header (requires server-side logs or a proxy to inspect).
-
-**Note**: This test is most valuable with a fixture server. Skip if no fixture exists and document why.
 
 ---
 
@@ -1335,9 +1318,8 @@ without `-t` should still produce the existing error.
 | ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | Terminal does not render Hebrew RTL correctly        | Verify bytes with `xxd` / `od` rather than relying on visual rendering                                            |
 | Shell variable expansion strips Hebrew characters    | Use `printf` with explicit UTF-8 and double-quote Hebrew positional args                                          |
-| `GEMATRIA_*` env vars leak between test cases        | `unset GEMATRIA_MISPAR GEMATRIA_OUTPUT GEMATRIA_WORDLIST GEMATRIA_LIMIT GEMATRIA_WORDLIST_TOKEN GEMATRIA_SCHEME` between sections |
+| `GEMATRIA_*` env vars leak between test cases        | `unset GEMATRIA_MISPAR GEMATRIA_OUTPUT GEMATRIA_WORDLIST GEMATRIA_LIMIT GEMATRIA_SCHEME` between sections |
 | SQLite backend requires CGO or a specific build      | Skip TC-BACKEND-001 if `gematria --index --index-format sqlite` fails at setup                                            |
-| Remote backend tests require external infrastructure | Mark TC-BACKEND-005 as skipped with note if no test server is available                                           |
 | `TEST_DIR` collisions if tests run in parallel       | Use per-run `mktemp` directory (already in setup)                                                                 |
 
 ---
@@ -1363,7 +1345,7 @@ After the session:
 
 ```sh
 rm -rf "${TEST_DIR}"
-unset GEMATRIA_MISPAR GEMATRIA_OUTPUT GEMATRIA_WORDLIST GEMATRIA_LIMIT GEMATRIA_WORDLIST_TOKEN GEMATRIA_SCHEME
+unset GEMATRIA_MISPAR GEMATRIA_OUTPUT GEMATRIA_WORDLIST GEMATRIA_LIMIT GEMATRIA_SCHEME
 
 # The installed binary at ~/.local/bin/gematria is left in place so
 # subsequent sessions can pick up where this one left off. Remove it

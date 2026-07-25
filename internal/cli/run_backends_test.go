@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -281,91 +279,6 @@ func TestRun_find_wordlistFormatIndex_overridesExtension(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "שלום") {
 		t.Errorf("stdout = %q, want שלום from index backend", stdout)
-	}
-	if stderr != "" {
-		t.Errorf("stderr = %q, want empty", stderr)
-	}
-}
-
-// --- Remote backend: http URL auto-selects remote backend ---
-
-func TestRun_find_httpURL_usesRemoteBackend(t *testing.T) {
-	// Serve a mock API response matching the remote word source contract
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"words":[{"hebrew":"שלום","transliteration":"shalom","meaning":"peace"}],"hasMore":false}`))
-	}))
-	defer srv.Close()
-
-	stdoutW, readStdout := pipeCapture(t)
-	stderrW, readStderr := pipeCapture(t)
-	stdin := makeStdinPipe(t, "")
-
-	code := Run([]string{"--find", "376", "--wordlist", srv.URL, "--output", "value"}, stdin, stdoutW, stderrW, noenv)
-
-	stdout := readStdout()
-	stderr := readStderr()
-
-	if code != 0 {
-		t.Errorf("exit code = %d, want 0 (remote backend)", code)
-	}
-	if !strings.Contains(stdout, "שלום") {
-		t.Errorf("stdout = %q, want שלום from remote backend", stdout)
-	}
-	if stderr != "" {
-		t.Errorf("stderr = %q, want empty", stderr)
-	}
-}
-
-// --- GEMATRIA_WORDLIST_TOKEN: auth header sent to remote backend ---
-
-func TestRun_find_wordlistToken_sentAsAuthHeader(t *testing.T) {
-	var receivedAuth string
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		receivedAuth = r.Header.Get("Authorization")
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"words":[],"hasMore":false}`))
-	}))
-	defer srv.Close()
-
-	stdoutW, _ := pipeCapture(t)
-	stderrW, _ := pipeCapture(t)
-	stdin := makeStdinPipe(t, "")
-
-	getenv := envWith(map[string]string{"GEMATRIA_WORDLIST_TOKEN": "secret-token"})
-	code := Run([]string{"--find", "376", "--wordlist", srv.URL}, stdin, stdoutW, stderrW, getenv)
-
-	if code != 0 {
-		t.Errorf("exit code = %d, want 0", code)
-	}
-	if receivedAuth != "Bearer secret-token" {
-		t.Errorf("Authorization header = %q, want %q", receivedAuth, "Bearer secret-token")
-	}
-}
-
-// --- --wordlist-format remote: forces remote backend for http URL (explicit) ---
-
-func TestRun_find_wordlistFormatRemote_explicit(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(`{"words":[{"hebrew":"אמת","transliteration":"emet","meaning":"truth"}],"hasMore":false}`))
-	}))
-	defer srv.Close()
-
-	stdoutW, readStdout := pipeCapture(t)
-	stderrW, readStderr := pipeCapture(t)
-	stdin := makeStdinPipe(t, "")
-
-	code := Run([]string{"--find", "441", "--wordlist", srv.URL, "--wordlist-format", "remote", "--output", "value"}, stdin, stdoutW, stderrW, noenv)
-
-	stdout := readStdout()
-	stderr := readStderr()
-
-	if code != 0 {
-		t.Errorf("exit code = %d, want 0 (remote format forced)", code)
-	}
-	if !strings.Contains(stdout, "אמת") {
-		t.Errorf("stdout = %q, want אמת from remote backend", stdout)
 	}
 	if stderr != "" {
 		t.Errorf("stderr = %q, want empty", stderr)

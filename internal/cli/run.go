@@ -40,7 +40,7 @@ Options:
       --no-color                Disable ANSI color output
       --fail-early              Stop on first error when reading from stdin
       --version                 Print version and exit
-      --wordlist-format string  Backend override: sqlite|index|remote|memory
+      --wordlist-format string  Backend override: sqlite|index|memory
   -l, --limit int               Maximum number of reverse lookup results (default: 20)
   -h, --help                    Show this help message
 
@@ -56,7 +56,6 @@ Environment Variables:
                             validated lazily, only when -t is active
   GEMATRIA_WORDLIST         Path to word list file for reverse lookup (--find)
   GEMATRIA_LIMIT            Maximum number of reverse lookup results (default: 20)
-  GEMATRIA_WORDLIST_TOKEN   Bearer token for authenticated remote word sources
   GEMATRIA_INDEX_LOCATION   Directory for index files (default: XDG_DATA_HOME/gematria
                             or ~/.local/share/gematria)
   GEMATRIA_INDEX_NAME       Index filename without extension (default: gematria)
@@ -264,21 +263,17 @@ func exitCodeForComputeError(err error) int {
 // openWordSource selects and constructs the appropriate WordSource backend for path.
 // Detection order (first match wins):
 //  1. format is non-empty → use the specified backend explicitly
-//  2. path begins with "http://" or "https://" → remote backend
-//  3. path ends with ".db" → SQLite backend
-//  4. path ends with ".idx" → index file backend
-//  5. companion file path+".idx" exists → index file backend
-//  6. default → in-memory backend (ParseWordList)
+//  2. path ends with ".db" → SQLite backend
+//  3. path ends with ".idx" → index file backend
+//  4. companion file path+".idx" exists → index file backend
+//  5. default → in-memory backend (ParseWordList)
 //
 // Returns (source, closer, error). closer is non-nil only for backends that
 // hold an open resource (SQLite DB, index file). The caller must call
 // closer.Close() if closer != nil.
-func openWordSource(path, format string, getenv func(string) string) (gematria.WordSource, io.Closer, error) {
+func openWordSource(path, format string) (gematria.WordSource, io.Closer, error) {
 	if format != "" {
-		return openWordSourceByFormat(path, format, getenv)
-	}
-	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
-		return openRemoteWordSource(path, getenv)
+		return openWordSourceByFormat(path, format)
 	}
 	if strings.HasSuffix(path, ".db") {
 		return openSQLiteWordSource(path)
@@ -294,14 +289,12 @@ func openWordSource(path, format string, getenv func(string) string) (gematria.W
 }
 
 // openWordSourceByFormat constructs a backend by explicit format name.
-func openWordSourceByFormat(path, format string, getenv func(string) string) (gematria.WordSource, io.Closer, error) {
+func openWordSourceByFormat(path, format string) (gematria.WordSource, io.Closer, error) {
 	switch format {
 	case "sqlite":
 		return openSQLiteWordSource(path)
 	case "index":
 		return openIndexWordSource(path)
-	case "remote":
-		return openRemoteWordSource(path, getenv)
 	default: // "memory"
 		return openMemoryWordSource(path)
 	}
@@ -326,18 +319,6 @@ func openIndexWordSource(path string) (gematria.WordSource, io.Closer, error) {
 		return nil, nil, err
 	}
 	return src, f, nil
-}
-
-func openRemoteWordSource(path string, getenv func(string) string) (gematria.WordSource, io.Closer, error) {
-	var opts []gematria.RemoteOption
-	if token := getenv("GEMATRIA_WORDLIST_TOKEN"); token != "" {
-		opts = append(opts, gematria.WithAuthToken(token))
-	}
-	src, err := gematria.NewRemoteWordSource(path, opts...)
-	if err != nil {
-		return nil, nil, err
-	}
-	return src, nil, nil
 }
 
 func openMemoryWordSource(path string) (gematria.WordSource, io.Closer, error) {
@@ -369,7 +350,7 @@ func runFind(cfg Config, formatter Formatter, stdout, stderr *os.File, getenv fu
 		}
 	}
 
-	source, closer, err := openWordSource(cfg.Wordlist, cfg.WordlistFormat, getenv)
+	source, closer, err := openWordSource(cfg.Wordlist, cfg.WordlistFormat)
 	if err != nil {
 		_, _ = fmt.Fprint(stderr, formatter.FormatError(
 			fmt.Errorf("cannot open word list %q: %w", cfg.Wordlist, err)))
